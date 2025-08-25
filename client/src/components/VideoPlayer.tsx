@@ -32,13 +32,6 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  useEffect(() => {
-    if (initialLayout) {
-        setVideoLayout(initialLayout);
-    }
-  }, [initialLayout]);
-
-
   const toggleFullscreen = () => {
     const player = playerWrapperRef.current;
     if (!player) return;
