@@ -1,0 +1,1893 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap');
+
+/* ==========================================================================
+   CSS Variables
+   ========================================================================== */
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-serif: 'Poppins', serif;
+
+  --primary: #6366f1;
+  --primary-light: #818cf8;
+  --primary-dark: #4f46e5;
+
+  --secondary: #10b981;
+  --secondary-light: #34d399;
+  --secondary-dark: #059669;
+
+  --danger: #ef4444;
+  --warning: #f59e0b;
+
+  --background: #f9fafb;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  --transition: all 0.2s ease-in-out;
+
+  --container-width: 1280px;
+  --container-padding: 1.5rem;
+}
+
+[data-theme="dark"] {
+  --primary: #818cf8;
+  --primary-light: #a78bfa;
+  --primary-dark: #6366f1;
+
+  --secondary: #34d399;
+  --secondary-light: #6ee7b7;
+  --secondary-dark: #10b981;
+
+  --background: #111827;
+  --surface: #1f2937;
+  --border: #374151;
+
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #6b7280;
+}
+
+/* ==========================================================================
+   Global Styles & Resets
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+main {
+  padding-top: 80px; /* Adjust for fixed nav */
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+a:hover {
+  color: var(--primary-dark);
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   App Component
+   ========================================================================== */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-main {
+  flex-grow: 1;
+}
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  z-index: 9999;
+}
+
+.loading-screen .logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1.5rem;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--primary-light);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-top: 1.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+
+/* ==========================================================================
+   Nav Component
+   ========================================================================== */
+
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+.header.scrolled {
+    background-color: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-md);
+}
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 70px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+.nav-logo-img {
+  width: 40px;
+  height: 40px;
+}
+.nav-logo-text {
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+}
+
+.nav-main {
+    display: none;
+}
+@media (min-width: 768px) {
+    .nav-main {
+        display: block;
+    }
+}
+.nav-links {
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+}
+.nav-link {
+    padding: 0.5rem 1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    position: relative;
+}
+.nav-link:hover {
+    color: var(--text-primary);
+    background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+.nav-link.active {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.ministries-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.ministry-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+}
+
+.ministry-card-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    margin-bottom: 1.5rem;
+}
+
+.ministry-card-title {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.ministry-card-description {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    flex-grow: 1;
+}
+
+.events-list {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.event-card {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    padding: 1.5rem;
+}
+
+.event-card-date {
+    background-color: var(--primary);
+    color: white;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    min-width: 90px;
+    text-align: center;
+}
+
+.event-card-day {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.event-card-time {
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+.event-card-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.event-card-meta {
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.event-card-description {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.sermons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.sermon-archive-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.sermon-video-wrapper {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 */
+    height: 0;
+    background-color: #000;
+}
+
+.sermon-video-iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.sermon-archive-card-content {
+    padding: 1.25rem;
+}
+
+.sermon-archive-card-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.sermon-archive-card-meta {
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.sermon-archive-card-scripture {
+    font-style: italic;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   Give Page
+   ========================================================================== */
+
+.give-methods {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+@media (min-width: 768px) {
+    .give-methods {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.give-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.give-card h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+.give-card.primary-method {
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: var(--primary);
+}
+
+.bank-details {
+    background-color: var(--surface);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.detail-item:last-child {
+    border-bottom: none;
+}
+.detail-item span {
+    color: var(--text-secondary);
+}
+
+.bank-details-popup {
+    background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+}
+.bank-details-popup p {
+    margin: 0 0 0.5rem 0;
+}
+
+.btn-success {
+    background-color: var(--secondary);
+    border-color: var(--secondary);
+}
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0.5rem;
+    right: 0.5rem;
+    height: 2px;
+    background-color: var(--primary);
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.theme-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    border-radius: var(--radius-full);
+}
+.theme-toggle:hover {
+    color: var(--text-primary);
+    background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+.mobile-menu-toggle {
+    display: block;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+@media (min-width: 768px) {
+    .mobile-menu-toggle {
+        display: none;
+    }
+}
+
+.mobile-menu {
+    display: none;
+    position: absolute;
+    top: 70px;
+    left: 0;
+    right: 0;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem;
+}
+.header.mobile-open .mobile-menu {
+    display: block;
+}
+.mobile-menu ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.mobile-menu .nav-link {
+    display: block;
+    padding: 0.75rem 1rem;
+}
+
+
+/* ==========================================================================
+   Home Page
+   ========================================================================== */
+.home-page {
+    padding-top: 0;
+}
+.home-hero {
+    position: relative;
+    padding: 6rem var(--container-padding) 8rem;
+    text-align: center;
+    color: white;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh;
+}
+.home-hero-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    opacity: 0.9;
+    z-index: 1;
+}
+.home-hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 1s ease-out;
+}
+.home-logo {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 2rem;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+.home-title {
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    color: white;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    line-height: 1.1;
+}
+.home-title span {
+    color: var(--primary-light);
+}
+.home-subtitle {
+    font-size: 1.25rem;
+    color: var(--primary-light);
+    max-width: 600px;
+    margin-bottom: 2.5rem;
+}
+.home-hero-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.home-section {
+    padding: 5rem var(--container-padding);
+}
+.home-section-title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+.home-section-description {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 3rem;
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+.home-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-top: 3rem;
+}
+.home-feature-item {
+    text-align: center;
+    padding: 2rem;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+.home-feature-icon {
+    color: var(--primary);
+    margin-bottom: 1rem;
+}
+
+.home-sermons {
+    background-color: var(--background);
+}
+
+.sermon-card-featured {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+    .sermon-card-featured {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.sermon-card-info {
+    padding: 3rem;
+}
+.sermon-card-series {
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+.sermon-card-title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+.sermon-card-speaker {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+.sermon-card-description {
+    margin-bottom: 2rem;
+}
+
+
+/* ==========================================================================
+   Watch Page & Viewer States
+   ========================================================================== */
+
+.watch-page {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.watch-layout {
+  flex-grow: 1;
+}
+
+.watch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.watch-header h2 {
+  font-size: 2rem;
+}
+
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--danger);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+.watch-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .watch-layout {
+    grid-template-columns: 1fr 350px;
+  }
+  .watch-main-content.full-width {
+    grid-column: 1 / -1;
+  }
+}
+
+.watch-main-content {
+  min-width: 0;
+}
+
+.watch-state-container {
+  text-align: center;
+  max-width: 450px;
+  margin: 3rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.watch-state-container h3 {
+  font-size: 1.5rem;
+}
+
+.watch-username-input {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  width: 100%;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.watch-join-btn {
+  width: 100%;
+}
+
+.watch-rejoin-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+.watch-rejoin-actions .btn {
+  flex: 1;
+}
+
+.watch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+  max-width: 300px;
+  margin-top: 1rem;
+  justify-content: center;
+}
+
+.watch-actions .btn {
+  flex: 1;
+}
+
+.username-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 300px;
+}
+
+.video-player-wrapper {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 */
+  height: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background-color: #000;
+  box-shadow: var(--shadow-lg);
+}
+
+.video-player {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.video-overlay-top, .video-overlay-bottom {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.video-overlay-top {
+  top: 1rem;
+}
+.video-overlay-bottom {
+  bottom: 1rem;
+}
+
+.live-badge, .viewer-count, .connection-status-badge {
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: rgba(0,0,0,0.6);
+  color: white;
+  backdrop-filter: blur(4px);
+}
+
+.live-badge {
+  background-color: var(--danger);
+  text-transform: uppercase;
+}
+
+.connection-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.connection-status-badge .connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--danger);
+}
+.connection-status-badge.connected .connection-dot {
+  background-color: var(--secondary);
+}
+
+.stream-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.stream-info-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+.username-display {
+  color: var(--secondary-dark);
+  font-weight: 600;
+}
+[data-theme="dark"] .username-display {
+  color: var(--secondary-light);
+}
+
+.stream-actions-right {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.share-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.share-section h4 {
+  margin-bottom: 1rem;
+}
+
+.offline-message {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.watch-chat-sidebar {
+  min-width: 0;
+}
+
+/* On desktop, make chat card fill the grid row height */
+@media (min-width: 1024px) {
+    .watch-chat-sidebar .chat-card {
+        height: 100%;
+    }
+}
+
+.chat-card {
+  height: 70vh; /* Good default for mobile */
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.chat-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.chat-header h4 {
+  margin: 0;
+}
+
+
+/* ==========================================================================
+   Admin Page & Admin States
+   ========================================================================== */
+
+.admin-page {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.admin-layout {
+  flex-grow: 1;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-header-left h2 {
+  margin-bottom: 0.25rem;
+  font-size: 2rem;
+}
+
+.admin-status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+.status-badge .status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.status-badge.disconnected { color: var(--danger); }
+.status-badge.disconnected .status-dot { background-color: var(--danger); }
+.status-badge.connecting { color: var(--warning); }
+.status-badge.connecting .status-dot { background-color: var(--warning); }
+.status-badge.connected { color: var(--secondary); }
+.status-badge.connected .status-dot { background-color: var(--secondary); }
+
+.duration-badge {
+  color: var(--text-muted);
+}
+
+.admin-layout {
+  flex-grow: 1; /* Push footer down */
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .admin-layout.is-streaming {
+    grid-template-columns: 1fr 380px;
+  }
+}
+
+/* Make admin view more compact on mobile when streaming */
+@media (max-width: 1023px) {
+    .admin-layout.is-streaming {
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-chat-sidebar {
+        /* Make chat take up less vertical space on mobile */
+        height: 60vh;
+    }
+}
+
+.video-player-wrapper.portrait {
+    padding-bottom: 177.77%; /* 9:16 */
+    max-width: 320px;
+    margin: 0 auto;
+}
+.video-player-wrapper.landscape {
+    padding-bottom: 56.25%; /* 16:9 */
+}
+
+.video-overlay-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+.video-player-wrapper:hover .video-overlay-ui,
+.video-player-wrapper:fullscreen .video-overlay-ui {
+    opacity: 1;
+}
+
+.video-overlay-ui > * {
+    pointer-events: auto;
+}
+
+.video-overlay-bottom {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stream-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.leave-stream-btn {
+    background-color: var(--danger);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.video-controls-overlay {
+    /* Removed position: absolute as requested */
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.video-controls-overlay button {
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    .video-controls-overlay {
+        gap: 0.25rem;
+    }
+    .video-controls-overlay button {
+        width: 32px;
+        height: 32px;
+    }
+    .video-overlay-top {
+        top: 0.5rem;
+        left: 0.5rem;
+        right: 0.5rem;
+    }
+    .video-overlay-bottom {
+        bottom: 0.5rem;
+        left: 0.5rem;
+        right: 0.5rem;
+    }
+}
+
+.video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--surface);
+}
+
+.camera-selection-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 300px;
+    margin-top: 1rem;
+}
+
+.error-message {
+    color: var(--danger);
+    background-color: color-mix(in srgb, var(--danger) 15%, transparent);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    max-width: 400px;
+    text-align: center;
+}
+
+.admin-offline-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.admin-player .live-badge.is-offline {
+  background-color: var(--text-muted);
+}
+
+.admin-offline-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+.admin-offline-state h3 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.admin-offline-state p {
+  color: var(--text-muted);
+}
+
+.admin-chat-sidebar, .watch-chat-sidebar {
+    min-width: 0;
+}
+
+.chat-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+@media (max-width: 1023px) {
+    .admin-layout.is-streaming, .watch-layout.with-chat {
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-chat-sidebar, .watch-chat-sidebar {
+        height: 70vh; /* A generous height for mobile chat */
+    }
+}
+
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0,0,0,0.7);
+  backdrop-filter: blur(5px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.popup-content {
+  background-color: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 500px;
+  animation: slideUp 0.3s ease;
+}
+
+.popup-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.popup-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.popup-close:hover {
+  color: var(--text-primary);
+}
+
+.popup-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.form-group input, .form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+}
+.form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.popup-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+
+/* ==========================================================================
+   Chat Component
+   ========================================================================== */
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+
+.chat-header h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chat-header .status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.chat-header .connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color 0.3s ease;
+}
+
+.chat-header .connection-dot.connected {
+  background-color: var(--secondary);
+}
+
+.chat-header .connection-dot.disconnected {
+  background-color: var(--danger);
+}
+
+.messages-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.message {
+  display: flex;
+  max-width: 85%;
+}
+
+.message.is-other {
+  justify-content: flex-start;
+}
+
+.message.is-self {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.message-bubble {
+  padding: 0.65rem 1rem;
+  border-radius: 1.25rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.message.is-other .message-bubble {
+  background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border-bottom-left-radius: 0.375rem;
+}
+[data-theme="dark"] .message.is-other .message-bubble {
+    background-color: #374151; /* A bit darker for dark mode */
+}
+
+.message.is-self .message-bubble {
+  background-color: var(--primary);
+  color: white;
+  border-bottom-right-radius: 0.375rem;
+}
+
+.message-username {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: var(--primary);
+}
+[data-theme="dark"] .message-username {
+    color: var(--primary-light);
+}
+
+.message.is-self .message-username {
+  color: color-mix(in srgb, white 80%, transparent);
+  display: none; /* Hide own username by default */
+}
+
+.message-username.is-admin-username {
+    font-weight: 800;
+}
+
+.message-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.message.is-self .message-content {
+    color: white;
+}
+
+.message-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 0.25rem;
+  align-self: flex-end;
+}
+.message.is-self .message-time {
+    color: color-mix(in srgb, white 70%, transparent);
+}
+
+/* System & Event Messages */
+.message--join,
+.message--leave,
+.message--system {
+  width: 100%;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Prayer and Admin Message Bubble Overrides */
+.message.message--prayer .message-bubble {
+    background: linear-gradient(135deg, var(--secondary-dark), var(--secondary-light));
+    color: white;
+}
+.message.message--prayer .message-username,
+.message.message--prayer .message-time {
+    color: rgba(255,255,255,0.9);
+}
+
+.message.is-admin .message-bubble {
+    background: linear-gradient(135deg, #a21caf, #e879f9); /* Fuchsia gradient */
+    color: white;
+}
+
+/* Ensure admin username and time are legible on the new backgrounds */
+.message.is-admin .message-username,
+.message.is-admin .message-time,
+.message.message--prayer .message-username,
+.message.message--prayer .message-time {
+    color: rgba(255,255,255,0.9);
+}
+.message.is-admin .message-username.is-admin-username {
+    color: #fff;
+}
+
+
+.welcome-message {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: auto;
+}
+
+.input-area {
+  display: flex;
+  padding: 0.75rem;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.input-area input {
+  flex-grow: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+.input-area input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.input-area button {
+  padding: 0 1.25rem;
+  border: none;
+  background-color: var(--primary);
+  color: white;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  cursor: pointer;
+}
+.input-area button:disabled {
+    background-color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+
+
+/* ==========================================================================
+   SermonInfo Component
+   ========================================================================== */
+
+.sermon-info-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in srgb, var(--primary) 3%, transparent);
+}
+
+.sermon-info-card.is-editing {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.sermon-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.sermon-title {
+  font-size: 1.75rem;
+  margin: 0;
+}
+
+.btn-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--primary);
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+}
+.btn-edit:hover {
+    background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.sermon-meta {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.sermon-meta > div {
+    margin-bottom: 0.5rem;
+}
+
+.sermon-scripture {
+    font-style: italic;
+}
+
+.sermon-pastor span {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.sermon-notes {
+  margin-bottom: 1.5rem;
+}
+.sermon-notes h4 {
+    margin-bottom: 0.5rem;
+}
+.sermon-notes p {
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.sermon-info-footer {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.sermon-info-footer h4 {
+    margin-bottom: 1rem;
+}
+
+.sermon-info-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+
+
+/* ==========================================================================
+   ShareButtons Component
+   ========================================================================== */
+
+.share-buttons-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap; /* Fix for mobile overflow */
+}
+
+.input-area-wrapper {
+    padding: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+.quick-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap; /* Fix for mobile overflow */
+}
+.quick-action-btn {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    cursor: pointer;
+    background-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    border: none;
+    color: var(--text-primary);
+}
+
+.quick-action-btn.is-prayer {
+    background-color: color-mix(in srgb, var(--secondary) 15%, transparent);
+    color: var(--secondary-dark);
+}
+
+.share-button {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 50%;
+}
+
+.share-button:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.copy-link-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+
+/* ==========================================================================
+   Footer Component
+   ========================================================================== */
+.footer {
+    background-color: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 3rem var(--container-padding);
+    color: var(--text-secondary);
+}
+[data-theme="dark"] .footer {
+    background-color: #161f2e;
+}
+.footer-main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+.footer-about-text {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+.footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+}
+.footer-logo-img {
+    width: 40px;
+    height: 40px;
+}
+.footer-logo-text {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.footer-links h4, .footer-connect h4 {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+.footer-links ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.footer-links a {
+    color: var(--text-secondary);
+}
+.footer-links a:hover {
+    color: var(--primary);
+}
+.footer-bottom {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+
+.page-header {
+    text-align: center;
+    padding: 2rem 0 3rem;
+}
+.page-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+.page-header p {
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: 0 auto;
+    color: var(--text-secondary);
+}
+
+
+/* ==========================================================================
+   Give Page
+   ========================================================================== */
+.give-page .give-methods {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+@media (min-width: 768px) {
+    .give-page .give-methods {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.give-card {
+    background-color: var(--surface);
+    padding: 2rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.give-card h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+.give-card.primary-method {
+    background-color: color-mix(in srgb, var(--primary) 5%, transparent);
+    border-color: var(--primary);
+}
+.give-card .btn {
+    margin-top: auto;
+}
+
+.bank-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    font-family: monospace;
+}
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+.detail-item span {
+    color: var(--text-secondary);
+}
+
+
+/* ==========================================================================
+   Generic Page Styles
+   ========================================================================== */
+
+.page-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem var(--container-padding) 4rem;
+}
+
+.page-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.page-title {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+    .card-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.card-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary);
+}
+
+.values-card {
+    background-color: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+
+.values-list {
+    list-style: none;
+    padding: 0;
+    columns: 2;
+    gap: 1rem;
+}
+
+.values-list li {
+    margin-bottom: 0.75rem;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.values-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.container {
+  width: 100%;
+  max-width: var(--container-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--container-padding);
+  padding-right: var(--container-padding);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-secondary:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
