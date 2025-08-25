@@ -162,12 +162,12 @@ export default function Admin() {
     });
 
     socket.emit("stream:ended");
+    cleanupStream();
     localStorage.removeItem("bca_admin:streamInfo");
     setAdminState('post-stream');
   };
 
   const handleClosePostStreamSummary = () => {
-    cleanupStream();
     setLastStreamStats(null);
     setAdminState('offline');
   }
@@ -270,9 +270,11 @@ export default function Admin() {
               />
             </div>
           ) : (
-            <div className="card admin-offline-container">
-              {renderOfflineContent()}
-            </div>
+            adminState !== 'post-stream' && (
+              <div className="card admin-offline-container">
+                {renderOfflineContent()}
+              </div>
+            )
           )}
         </div>
 
