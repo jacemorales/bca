@@ -74,8 +74,9 @@ export default function Watch() {
 
     socket.once("stream:status", (status: { online: boolean; info?: StreamInfo }) => {
       setIsRetrying(false);
-      if (status.online) {
-        setStreamInfo(status.info || null);
+      if (status.online && status.info) {
+        setStreamInfo(status.info);
+        localStorage.setItem("bca_viewer:streamInfo", JSON.stringify(status.info));
         // If username is already set (e.g. rejoining or retrying), go straight to watching
         if (username) {
             setUiState("watching");

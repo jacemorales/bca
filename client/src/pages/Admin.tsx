@@ -133,7 +133,10 @@ export default function Admin() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode },
-        audio: true,
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+        },
       });
       localStreamRef.current = stream;
       const updatedInfo = { ...info, streamCamera: facingMode, layout: 'landscape' };
@@ -150,6 +153,50 @@ export default function Admin() {
       }
       alert("Could not access camera. Please check permissions.");
       setAdminState('offline');
+    }
+  };
+
+  const handleLayoutChange = async (layout: 'landscape' | 'portrait') => {
+    if (!localStreamRef.current) return;
+
+    const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    videoTrack.stop();
+
+    const newConstraints = {
+        video: {
+            width: { ideal: layout === 'landscape' ? 1280 : 720 },
+            height: { ideal: layout === 'landscape' ? 720 : 1280 },
+            facingMode: streamInfo.streamCamera || 'user'
+        },
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+        }
+    };
+
+    try {
+        const newStream = await navigator.mediaDevices.getUserMedia(newConstraints);
+        const newVideoTrack = newStream.getVideoTracks()[0];
+
+        localStreamRef.current.removeTrack(videoTrack);
+        localStreamRef.current.addTrack(newVideoTrack);
+
+        Object.values(pcsRef.current).forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(newVideoTrack);
+            }
+        });
+
+        const updated = { ...streamInfo, layout };
+        setStreamInfo(updated);
+        socket.emit("stream:layoutChange", layout);
+        socket.emit("stream:info", updated);
+        localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
+    } catch (err) {
+        console.error("Failed to change layout", err);
+        // If layout change fails, maybe try to revert to old stream?
+        // For now, we just log the error. A more robust solution could be added later.
     }
   };
 
@@ -250,13 +297,7 @@ export default function Admin() {
                 showControls={true}
                 duration={streamDuration}
                 initialLayout={streamInfo.layout}
-                onLayoutChange={(layout) => {
-                  socket.emit("stream:layoutChange", layout);
-                  const updated = { ...streamInfo, layout };
-                  setStreamInfo(updated);
-                  socket.emit("stream:info", updated);
-                  localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
-                }}
+                onLayoutChange={handleLayoutChange}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 
