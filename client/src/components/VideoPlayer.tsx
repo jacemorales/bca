@@ -23,11 +23,15 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(error => {
-        console.error("Video play failed:", error);
-      });
+      // The play() request is only needed for viewers on mobile, as admin is muted.
+      // Calling it on the admin side caused an abort error during stream startup.
+      if (!isMuted) {
+        videoRef.current.play().catch(error => {
+          console.error("Video play failed:", error);
+        });
+      }
     }
-  }, [stream]);
+  }, [stream, isMuted]);
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
