@@ -248,7 +248,6 @@ export default function Admin() {
                 isMuted={true}
                 showControls={true}
                 duration={streamDuration}
-                onLayoutChange={(layout) => socket.emit("stream:layoutChange", layout)}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 

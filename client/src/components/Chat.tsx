@@ -23,6 +23,10 @@ export default function Chat({ socket, username }: ChatProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (data: ChatMessage) => {
