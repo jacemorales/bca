@@ -778,7 +778,6 @@ h1, h2, h3, h4, h5, h6 {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
 }
 
 .video-overlay-top, .video-overlay-bottom {
@@ -986,34 +985,13 @@ h1, h2, h3, h4, h5, h6 {
     }
 }
 
-.video-player-wrapper {
-    /* This class now only defines the 16:9 aspect ratio */
-    padding-bottom: 56.25%; /* 16:9 */
+.video-player-wrapper.portrait {
+    padding-bottom: 177.77%; /* 9:16 */
+    max-width: 320px;
+    margin: 0 auto;
 }
-
-@media (orientation: landscape) and (max-width: 1023px) {
-    .watch-page {
-        padding: 0;
-        overflow: hidden; /* Hide scrollbars */
-    }
-    .watch-page .watch-layout {
-        display: block; /* Override grid */
-    }
-    .watch-page .video-player-wrapper {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 2000;
-        padding-bottom: 0; /* Override aspect ratio */
-        border-radius: 0;
-    }
-    .watch-page .watch-header,
-    .watch-page .sermon-info-card,
-    .watch-page .watch-chat-sidebar {
-        display: none; /* Hide everything but the video */
-    }
+.video-player-wrapper.landscape {
+    padding-bottom: 56.25%; /* 16:9 */
 }
 
 .video-overlay-ui {
@@ -1465,12 +1443,11 @@ h1, h2, h3, h4, h5, h6 {
 .input-area input {
   flex-grow: 1;
   border: 1px solid var(--border);
-  width: 100%; /* Ensure it takes up space */
-  min-width: 0; /* Allow it to shrink */
   border-radius: var(--radius-full);
   padding: 0.65rem 1rem;
   font-size: 0.9rem;
   background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  min-width: 0;
 }
 .input-area input:focus {
     outline: none;
@@ -1479,14 +1456,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .input-area button {
-  padding: 0 1.25rem;
+  padding: 0.65rem 1.25rem;
   border: none;
   background-color: var(--primary);
   color: white;
   border-radius: var(--radius-full);
   font-weight: 600;
   cursor: pointer;
-  flex-shrink: 0; /* Prevent the button from shrinking */
+  flex-shrink: 0;
 }
 .input-area button:disabled {
     background-color: var(--text-muted);
@@ -1914,78 +1891,4 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
-}
-
-/* ==========================================================================
-   Post Stream Summary
-   ========================================================================== */
-
-.post-stream-summary-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(5px);
-  animation: fadeIn 0.3s ease;
-}
-
-.post-stream-summary-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 2.5rem;
-  text-align: center;
-  animation: slideUp 0.3s ease;
-}
-
-.summary-header .summary-icon {
-  color: var(--primary);
-  margin-bottom: 1rem;
-}
-
-.summary-header h2 {
-  font-size: 1.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.summary-header p {
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-}
-
-.summary-stats {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 2.5rem;
-  gap: 1rem;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.stat-item .stat-value {
-  font-size: 2rem;
-  font-weight: bold;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.stat-item .stat-label {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.summary-actions .btn {
-  width: 100%;
 }
