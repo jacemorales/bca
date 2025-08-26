@@ -5,9 +5,15 @@ import SermonInfo from "../components/SermonInfo";
 import Chat from "../components/Chat";
 import SermonDetailsForm from "../components/SermonDetailsForm";
 import VideoPlayer from "../components/VideoPlayer";
+import PostStreamSummary from "../components/PostStreamSummary";
 
 type PeerMap = Record<string, RTCPeerConnection>;
-type AdminState = 'offline' | 'configuring' | 'selecting_camera' | 'resuming' | 'streaming';
+type AdminState = 'offline' | 'configuring' | 'selecting_camera' | 'resuming' | 'streaming' | 'post-stream';
+
+interface StreamStats {
+  duration: string;
+  viewerCount: number;
+}
 
 interface StreamInfo {
   title: string;
@@ -16,6 +22,7 @@ interface StreamInfo {
   notes: string;
   startTime?: string;
   streamId?: string;
+  streamCamera?: 'user' | 'environment';
 }
 
 export default function Admin() {
@@ -23,14 +30,22 @@ export default function Admin() {
   const pcsRef = useRef<PeerMap>({});
   
   const [adminState, setAdminState] = useState<AdminState>('offline');
+  const [isLoading, setIsLoading] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
+  const [lastStreamStats, setLastStreamStats] = useState<StreamStats | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
     title: "Sunday Service",
     pastor: "Rev Dr. Eugene-Ndu",
     scripture: "John 3:16",
     notes: "",
   });
+
+  useEffect(() => {
+    if (adminState === 'streaming' || adminState === 'offline') {
+        setIsLoading(false);
+    }
+  }, [adminState]);
 
   useEffect(() => {
     const savedStream = localStorage.getItem("bca_admin:streamInfo");
@@ -102,12 +117,15 @@ export default function Admin() {
   };
 
   const startNewStream = async (facingMode: 'user' | 'environment') => {
+      setIsLoading(true);
       const fullStreamInfo = { ...streamInfo, streamId: Date.now().toString(), startTime: new Date().toISOString() };
       await getMediaAndBroadcast(facingMode, fullStreamInfo);
   };
 
   const resumeStream = async () => {
-      await getMediaAndBroadcast('user', streamInfo); // Default to user camera on resume
+      setIsLoading(true);
+      const camera = streamInfo.streamCamera || 'user';
+      await getMediaAndBroadcast(camera, streamInfo);
   }
 
   const getMediaAndBroadcast = async (facingMode: 'user' | 'environment', info: StreamInfo) => {
@@ -117,10 +135,11 @@ export default function Admin() {
         audio: true,
       });
       localStreamRef.current = stream;
-      setStreamInfo(info);
+      const updatedInfo = { ...info, streamCamera: facingMode };
+      setStreamInfo(updatedInfo);
       setAdminState('streaming');
-      localStorage.setItem("bca_admin:streamInfo", JSON.stringify(info));
-      socket.emit("role:broadcaster", info);
+      localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updatedInfo));
+      socket.emit("role:broadcaster", updatedInfo);
     } catch (err: any) {
       console.error("Failed to get media", err);
       if (facingMode === 'environment' && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
@@ -135,11 +154,22 @@ export default function Admin() {
 
   const stopStreaming = () => {
     if (document.fullscreenElement) document.exitFullscreen();
+
+    setLastStreamStats({
+      duration: streamDuration,
+      viewerCount: viewerCount,
+    });
+
     socket.emit("stream:ended");
     cleanupStream();
     localStorage.removeItem("bca_admin:streamInfo");
-    setAdminState('offline');
+    setAdminState('post-stream');
   };
+
+  const handleClosePostStreamSummary = () => {
+    setLastStreamStats(null);
+    setAdminState('offline');
+  }
 
   const cleanupStream = () => {
     Object.values(pcsRef.current).forEach(pc => pc.close());
@@ -158,8 +188,12 @@ export default function Admin() {
                     <h3>Existing Stream Found</h3>
                     <p>Do you want to continue your previous stream?</p>
                     <div className="camera-selection-actions">
-                        <button onClick={resumeStream} className="btn btn-primary">Continue Stream</button>
-                        <button onClick={stopStreaming} className="btn btn-secondary">Start New Stream</button>
+                        <button onClick={resumeStream} className="btn btn-primary" disabled={isLoading}>
+                            {isLoading ? 'Starting...' : 'Continue Stream'}
+                        </button>
+                        <button onClick={stopStreaming} className="btn btn-secondary" disabled={isLoading}>
+                            Start New Stream
+                        </button>
                     </div>
                 </div>
             )
@@ -168,8 +202,12 @@ export default function Admin() {
                 <div className="admin-offline-state">
                     <h3>Select Camera</h3>
                     <div className="camera-selection-actions">
-                        <button onClick={() => startNewStream('user')} className="btn btn-primary">Use Front Camera</button>
-                        <button onClick={() => startNewStream('environment')} className="btn btn-secondary">Use Back Camera</button>
+                        <button onClick={() => startNewStream('user')} className="btn btn-primary" disabled={isLoading}>
+                            {isLoading ? 'Starting...' : 'Use Front Camera'}
+                        </button>
+                        <button onClick={() => startNewStream('environment')} className="btn btn-secondary" disabled={isLoading}>
+                            {isLoading ? 'Starting...' : 'Use Back Camera'}
+                        </button>
                     </div>
                 </div>
             );
@@ -224,9 +262,11 @@ export default function Admin() {
               />
             </div>
           ) : (
-            <div className="card admin-offline-container">
-              {renderOfflineContent()}
-            </div>
+            adminState !== 'post-stream' && (
+              <div className="card admin-offline-container">
+                {renderOfflineContent()}
+              </div>
+            )
           )}
         </div>
 
@@ -245,6 +285,13 @@ export default function Admin() {
           onSubmit={handleSermonSubmit}
           onCancel={() => setAdminState('offline')}
           isStreaming={false}
+        />
+      )}
+
+      {adminState === 'post-stream' && lastStreamStats && (
+        <PostStreamSummary
+          stats={lastStreamStats}
+          onClose={handleClosePostStreamSummary}
         />
       )}
     </div>

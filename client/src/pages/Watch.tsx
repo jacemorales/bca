@@ -12,6 +12,7 @@ interface StreamInfo {
   notes: string;
   startTime?: string;
   streamId?: string;
+  layout?: 'landscape' | 'portrait';
 }
 
 type UiState =
@@ -73,14 +74,10 @@ export default function Watch() {
 
     socket.once("stream:status", (status: { online: boolean; info?: StreamInfo }) => {
       setIsRetrying(false);
-      if (status.online) {
-        setStreamInfo(status.info || null);
-        // If username is already set (e.g. rejoining or retrying), go straight to watching
-        if (username) {
-            setUiState("watching");
-        } else {
-            setUiState("promptUsername");
-        }
+      if (status.online && status.info) {
+        setStreamInfo(status.info);
+        localStorage.setItem("bca_viewer:streamInfo", JSON.stringify(status.info));
+        setUiState("promptUsername");
       } else {
         if (uiState === 'streamPaused') {
           // Stay paused if retrying failed, do nothing.
@@ -140,7 +137,9 @@ export default function Watch() {
                     <h3>Join the Live Worship</h3>
                     <p>Experience our service in real-time with our community online.</p>
                     <div className="watch-actions">
-                        <button onClick={handleJoinLiveClick} className="btn btn-primary">Join Live</button>
+                        <button onClick={handleJoinLiveClick} className="btn btn-primary" disabled={isRetrying}>
+                            {isRetrying ? 'Connecting...' : 'Join Live'}
+                        </button>
                         <Link to="/events" className="btn btn-secondary">View Events</Link>
                     </div>
                 </>
@@ -150,8 +149,10 @@ export default function Watch() {
                     <h3>Stream in Progress</h3>
                     <p>It looks like you were watching the stream. Would you like to rejoin?</p>
                     <div className="watch-actions">
-                        <button onClick={handleJoinLiveClick} className="btn btn-primary">Rejoin</button>
-                        <button onClick={handleReturnToHome} className="btn btn-secondary">Leave</button>
+                        <button onClick={handleJoinLiveClick} className="btn btn-primary" disabled={isRetrying}>
+                            {isRetrying ? 'Connecting...' : 'Rejoin'}
+                        </button>
+                        <button onClick={handleReturnToHome} className="btn btn-secondary" disabled={isRetrying}>Leave</button>
                     </div>
                 </>
             )}
@@ -160,7 +161,9 @@ export default function Watch() {
                     <h3>No Active Stream</h3>
                     <p>There is no live stream at the moment. Please check our events page.</p>
                     <div className="watch-actions">
-                        <button onClick={handleJoinLiveClick} className="btn btn-primary">Check Again</button>
+                        <button onClick={handleJoinLiveClick} className="btn btn-primary" disabled={isRetrying}>
+                            {isRetrying ? 'Checking...' : 'Check Again'}
+                        </button>
                         <Link to="/events" className="btn btn-secondary">View Events</Link>
                     </div>
                 </>
@@ -221,7 +224,7 @@ function WatchingView({ streamInfo, username, onLeave }: { streamInfo: StreamInf
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [videoLayout, setVideoLayout] = useState<'landscape' | 'portrait'>('landscape');
+  const [videoLayout, setVideoLayout] = useState<'landscape' | 'portrait'>(streamInfo.layout || 'landscape');
   const [duration, setDuration] = useState("00:00");
 
   useEffect(() => {
