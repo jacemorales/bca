@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 import SermonInfo from "../components/SermonInfo";
 import Chat from "../components/Chat";
@@ -48,6 +48,19 @@ export default function Admin() {
     }
   }, [adminState]);
 
+  const handleViewerJoin = useCallback(async ({ viewerId }: { viewerId: string }) => {
+    if (!localStream) return;
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    pcsRef.current[viewerId] = pc;
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    pc.onicecandidate = (ev) => {
+      if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
+  }, [localStream]);
+
   useEffect(() => {
     const savedStream = localStorage.getItem("bca_admin:streamInfo");
     if (savedStream) {
@@ -62,14 +75,14 @@ export default function Admin() {
     socket.on("viewerCount", setViewerCount);
 
     return () => {
-      socket.off("viewer:join");
+      socket.off("viewer:join", handleViewerJoin);
       socket.off("answer");
       socket.off("ice");
       socket.off("viewerCount");
       cleanupStream();
       socket.disconnect();
     };
-  }, []);
+  }, [handleViewerJoin]);
 
   useEffect(() => {
     const durationInterval = setInterval(() => {
@@ -89,18 +102,6 @@ export default function Admin() {
     return () => clearInterval(durationInterval);
   }, [adminState, streamInfo.startTime]);
 
-  const handleViewerJoin = async ({ viewerId }: { viewerId: string }) => {
-    if (!localStream) return;
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-    pcsRef.current[viewerId] = pc;
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    pc.onicecandidate = (ev) => {
-      if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
-    };
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
-  };
 
   const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
     const pc = pcsRef.current[from];
