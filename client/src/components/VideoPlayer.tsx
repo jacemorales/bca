@@ -23,8 +23,6 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      // The play() request is only needed for viewers on mobile, as admin is muted.
-      // Calling it on the admin side caused an abort error during stream startup.
       if (!isMuted) {
         videoRef.current.play().catch(error => {
           console.error("Video play failed:", error);
@@ -66,9 +64,9 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
           {showControls && (
             <div className="video-controls-overlay">
                 {onLayoutChange && (
-                    <button onClick={toggleVideoLayout} title="Toggle Aspect Ratio">
-                        <RefreshCw size={20} />
-                    </button>
+                  <button onClick={toggleVideoLayout} title="Toggle Aspect Ratio">
+                    <RefreshCw size={20} />
+                  </button>
                 )}
                 <button onClick={toggleFullscreen} title="Toggle Fullscreen">
                 {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}

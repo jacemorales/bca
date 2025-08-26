@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 import SermonInfo from "../components/SermonInfo";
 import Chat from "../components/Chat";
@@ -23,11 +23,10 @@ interface StreamInfo {
   startTime?: string;
   streamId?: string;
   streamCamera?: 'user' | 'environment';
-  layout?: 'landscape' | 'portrait';
 }
 
 export default function Admin() {
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<PeerMap>({});
   
   const [adminState, setAdminState] = useState<AdminState>('offline');
@@ -48,19 +47,6 @@ export default function Admin() {
     }
   }, [adminState]);
 
-  const handleViewerJoin = useCallback(async ({ viewerId }: { viewerId: string }) => {
-    if (!localStream) return;
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-    pcsRef.current[viewerId] = pc;
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    pc.onicecandidate = (ev) => {
-      if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
-    };
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
-  }, [localStream]);
-
   useEffect(() => {
     const savedStream = localStorage.getItem("bca_admin:streamInfo");
     if (savedStream) {
@@ -75,14 +61,14 @@ export default function Admin() {
     socket.on("viewerCount", setViewerCount);
 
     return () => {
-      socket.off("viewer:join", handleViewerJoin);
+      socket.off("viewer:join");
       socket.off("answer");
       socket.off("ice");
       socket.off("viewerCount");
       cleanupStream();
       socket.disconnect();
     };
-  }, [handleViewerJoin]);
+  }, []);
 
   useEffect(() => {
     const durationInterval = setInterval(() => {
@@ -102,6 +88,18 @@ export default function Admin() {
     return () => clearInterval(durationInterval);
   }, [adminState, streamInfo.startTime]);
 
+  const handleViewerJoin = async ({ viewerId }: { viewerId: string }) => {
+    if (!localStreamRef.current) return;
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    pcsRef.current[viewerId] = pc;
+    localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+    pc.onicecandidate = (ev) => {
+      if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
+  };
 
   const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
     const pc = pcsRef.current[from];
@@ -134,13 +132,10 @@ export default function Admin() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode },
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-        },
+        audio: true,
       });
-      setLocalStream(stream);
-      const updatedInfo = { ...info, streamCamera: facingMode, layout: 'landscape' };
+      localStreamRef.current = stream;
+      const updatedInfo = { ...info, streamCamera: facingMode };
       setStreamInfo(updatedInfo);
       setAdminState('streaming');
       localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updatedInfo));
@@ -154,53 +149,6 @@ export default function Admin() {
       }
       alert("Could not access camera. Please check permissions.");
       setAdminState('offline');
-    }
-  };
-
-  const handleLayoutChange = async (layout: 'landscape' | 'portrait') => {
-    if (!localStream) return;
-
-    const newConstraints = {
-        width: { ideal: layout === 'landscape' ? 1280 : 720 },
-        height: { ideal: layout === 'landscape' ? 720 : 1280 },
-    };
-
-    try {
-        const currentVideoTrack = localStream.getVideoTracks()[0];
-        await currentVideoTrack.applyConstraints(newConstraints);
-
-        const updated = { ...streamInfo, layout };
-        setStreamInfo(updated);
-        socket.emit("stream:layoutChange", layout);
-        socket.emit("stream:info", updated);
-        localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
-    } catch (err) {
-        console.error("Failed to change layout by applying constraints, falling back to new stream", err);
-        // Fallback to full stream replacement if applyConstraints fails (e.g., on some browsers/devices)
-        try {
-            const facingMode = streamInfo.streamCamera || 'user';
-            const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { ...newConstraints, facingMode },
-                audio: { echoCancellation: true, noiseSuppression: true }
-            });
-
-            localStream.getTracks().forEach(track => track.stop());
-            setLocalStream(newStream);
-
-            Object.values(pcsRef.current).forEach(pc => {
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) sender.replaceTrack(newStream.getVideoTracks()[0]);
-            });
-
-            const updated = { ...streamInfo, layout };
-            setStreamInfo(updated);
-            socket.emit("stream:layoutChange", layout);
-            socket.emit("stream:info", updated);
-            localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
-        } catch (fallbackErr) {
-            console.error("Fallback layout change failed:", fallbackErr);
-            alert("Could not change stream orientation.");
-        }
     }
   };
 
@@ -226,9 +174,9 @@ export default function Admin() {
   const cleanupStream = () => {
     Object.values(pcsRef.current).forEach(pc => pc.close());
     pcsRef.current = {};
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
     }
   };
 
@@ -292,16 +240,15 @@ export default function Admin() {
 
       <div className={`admin-layout ${adminState === 'streaming' ? 'is-streaming' : ''}`}>
         <div className="admin-main-content">
-          {adminState === 'streaming' && localStream ? (
+          {adminState === 'streaming' && localStreamRef.current ? (
             <div className="card">
               <VideoPlayer
-                stream={localStream}
+                stream={localStreamRef.current}
                 viewerCount={viewerCount}
                 isMuted={true}
                 showControls={true}
                 duration={streamDuration}
-                initialLayout={streamInfo.layout}
-                onLayoutChange={handleLayoutChange}
+                onLayoutChange={(layout) => socket.emit("stream:layoutChange", layout)}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 
