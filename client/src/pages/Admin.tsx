@@ -27,7 +27,7 @@ interface StreamInfo {
 }
 
 export default function Admin() {
-  const localStreamRef = useRef<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const pcsRef = useRef<PeerMap>({});
   
   const [adminState, setAdminState] = useState<AdminState>('offline');
@@ -90,10 +90,10 @@ export default function Admin() {
   }, [adminState, streamInfo.startTime]);
 
   const handleViewerJoin = async ({ viewerId }: { viewerId: string }) => {
-    if (!localStreamRef.current) return;
+    if (!localStream) return;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
     pcsRef.current[viewerId] = pc;
-    localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     pc.onicecandidate = (ev) => {
       if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
     };
@@ -138,7 +138,7 @@ export default function Admin() {
             noiseSuppression: true,
         },
       });
-      localStreamRef.current = stream;
+      setLocalStream(stream);
       const updatedInfo = { ...info, streamCamera: facingMode, layout: 'landscape' };
       setStreamInfo(updatedInfo);
       setAdminState('streaming');
@@ -157,36 +157,16 @@ export default function Admin() {
   };
 
   const handleLayoutChange = async (layout: 'landscape' | 'portrait') => {
-    if (!localStreamRef.current) return;
-
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    videoTrack.stop();
+    if (!localStream) return;
 
     const newConstraints = {
-        video: {
-            width: { ideal: layout === 'landscape' ? 1280 : 720 },
-            height: { ideal: layout === 'landscape' ? 720 : 1280 },
-            facingMode: streamInfo.streamCamera || 'user'
-        },
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-        }
+        width: { ideal: layout === 'landscape' ? 1280 : 720 },
+        height: { ideal: layout === 'landscape' ? 720 : 1280 },
     };
 
     try {
-        const newStream = await navigator.mediaDevices.getUserMedia(newConstraints);
-        const newVideoTrack = newStream.getVideoTracks()[0];
-
-        localStreamRef.current.removeTrack(videoTrack);
-        localStreamRef.current.addTrack(newVideoTrack);
-
-        Object.values(pcsRef.current).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-                sender.replaceTrack(newVideoTrack);
-            }
-        });
+        const currentVideoTrack = localStream.getVideoTracks()[0];
+        await currentVideoTrack.applyConstraints(newConstraints);
 
         const updated = { ...streamInfo, layout };
         setStreamInfo(updated);
@@ -194,9 +174,32 @@ export default function Admin() {
         socket.emit("stream:info", updated);
         localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
     } catch (err) {
-        console.error("Failed to change layout", err);
-        // If layout change fails, maybe try to revert to old stream?
-        // For now, we just log the error. A more robust solution could be added later.
+        console.error("Failed to change layout by applying constraints, falling back to new stream", err);
+        // Fallback to full stream replacement if applyConstraints fails (e.g., on some browsers/devices)
+        try {
+            const facingMode = streamInfo.streamCamera || 'user';
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { ...newConstraints, facingMode },
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
+
+            localStream.getTracks().forEach(track => track.stop());
+            setLocalStream(newStream);
+
+            Object.values(pcsRef.current).forEach(pc => {
+                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                if (sender) sender.replaceTrack(newStream.getVideoTracks()[0]);
+            });
+
+            const updated = { ...streamInfo, layout };
+            setStreamInfo(updated);
+            socket.emit("stream:layoutChange", layout);
+            socket.emit("stream:info", updated);
+            localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
+        } catch (fallbackErr) {
+            console.error("Fallback layout change failed:", fallbackErr);
+            alert("Could not change stream orientation.");
+        }
     }
   };
 
@@ -222,9 +225,9 @@ export default function Admin() {
   const cleanupStream = () => {
     Object.values(pcsRef.current).forEach(pc => pc.close());
     pcsRef.current = {};
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
     }
   };
 
@@ -288,10 +291,10 @@ export default function Admin() {
 
       <div className={`admin-layout ${adminState === 'streaming' ? 'is-streaming' : ''}`}>
         <div className="admin-main-content">
-          {adminState === 'streaming' && localStreamRef.current ? (
+          {adminState === 'streaming' && localStream ? (
             <div className="card">
               <VideoPlayer
-                stream={localStreamRef.current}
+                stream={localStream}
                 viewerCount={viewerCount}
                 isMuted={true}
                 showControls={true}
