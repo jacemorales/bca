@@ -21,8 +21,11 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
+    if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(error => {
+        console.error("Video play failed:", error);
+      });
     }
   }, [stream]);
 
@@ -58,9 +61,11 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
           <div className="live-badge is-live">LIVE</div>
           {showControls && (
             <div className="video-controls-overlay">
-                <button onClick={toggleVideoLayout} title="Toggle Aspect Ratio">
-                <RefreshCw size={20} />
-                </button>
+                {onLayoutChange && (
+                    <button onClick={toggleVideoLayout} title="Toggle Aspect Ratio">
+                        <RefreshCw size={20} />
+                    </button>
+                )}
                 <button onClick={toggleFullscreen} title="Toggle Fullscreen">
                 {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                 </button>

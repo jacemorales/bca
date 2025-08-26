@@ -77,12 +77,7 @@ export default function Watch() {
       if (status.online && status.info) {
         setStreamInfo(status.info);
         localStorage.setItem("bca_viewer:streamInfo", JSON.stringify(status.info));
-        // If username is already set (e.g. rejoining or retrying), go straight to watching
-        if (username) {
-            setUiState("watching");
-        } else {
-            setUiState("promptUsername");
-        }
+        setUiState("promptUsername");
       } else {
         if (uiState === 'streamPaused') {
           // Stay paused if retrying failed, do nothing.
