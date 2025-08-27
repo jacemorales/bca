@@ -891,7 +891,6 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   padding: 0;
-  overflow: hidden; /* Prevent children from breaking border radius */
 }
 .chat-header {
   padding: 1rem;
@@ -1309,6 +1308,9 @@ h1, h2, h3, h4, h5, h6 {
   flex-grow: 1;
   overflow-y: auto;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .message {
@@ -1436,9 +1438,8 @@ h1, h2, h3, h4, h5, h6 {
 .input-area {
   display: flex;
   padding: 0.75rem;
-  gap: 0.75rem;
+  gap: 0.5rem;
   border-top: 1px solid var(--border);
-  align-items: center;
 }
 
 .input-area input {
@@ -1448,7 +1449,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0.65rem 1rem;
   font-size: 0.9rem;
   background-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  min-width: 0;
 }
 .input-area input:focus {
     outline: none;
@@ -1457,14 +1457,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .input-area button {
-  padding: 0.65rem 1.25rem;
+  padding: 0 1.25rem;
   border: none;
   background-color: var(--primary);
   color: white;
   border-radius: var(--radius-full);
   font-weight: 600;
   cursor: pointer;
-  flex-shrink: 0;
 }
 .input-area button:disabled {
     background-color: var(--text-muted);
@@ -1892,4 +1891,72 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Streaming Component Fixes
+   ========================================================================== */
+
+/* Video Player Fixes */
+.video-player {
+  object-fit: contain;
+}
+.video-player-wrapper {
+    padding-bottom: 56.25%; /* 16:9 */
+}
+.video-player-wrapper.portrait, .video-player-wrapper.landscape {
+    padding-bottom: 56.25%;
+    max-width: none;
+    margin: 0;
+}
+
+@media (orientation: landscape) and (max-width: 1023px) {
+    .watch-page {
+        padding: 0;
+        overflow: hidden;
+    }
+    .watch-page .watch-layout {
+        display: block;
+    }
+    .watch-page .video-player-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 2000;
+        padding-bottom: 0;
+        border-radius: 0;
+    }
+    .watch-page .watch-header,
+    .watch-page .sermon-info-card,
+    .watch-page .watch-chat-sidebar {
+        display: none;
+    }
+}
+
+/* Chat Component Fixes */
+.chat-card {
+  overflow: hidden;
+}
+.messages-area {
+  flex-grow: 1;
+  overflow-y: auto;
+  /* Remove gap and flex properties that were here before */
+  display: block;
+}
+.message {
+    margin-bottom: 0.75rem; /* Re-add gap manually */
+}
+.input-area {
+  align-items: center;
+  gap: 0.75rem;
+}
+.input-area input {
+  min-width: 0;
+}
+.input-area button {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  flex-shrink: 0;
 }

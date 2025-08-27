@@ -1,10 +1,9 @@
-import { PartyPopper, Users, MessageSquare, Clock } from 'lucide-react';
+import { PartyPopper, Users, Clock } from 'lucide-react';
 
 interface PostStreamSummaryProps {
   stats: {
     duration: string;
     viewerCount: number;
-    // chatParticipants: number; // Will add this later
   };
   onClose: () => void;
 }
@@ -29,11 +28,6 @@ export default function PostStreamSummary({ stats, onClose }: PostStreamSummaryP
             <div className="stat-value">{stats.viewerCount}</div>
             <div className="stat-label">Peak Viewers</div>
           </div>
-          {/* <div className="stat-item">
-            <MessageSquare size={24} />
-            <div className="stat-value">{stats.chatParticipants}</div>
-            <div className="stat-label">Chatters</div>
-          </div> */}
         </div>
         <div className="summary-actions">
           <button onClick={onClose} className="btn btn-primary">

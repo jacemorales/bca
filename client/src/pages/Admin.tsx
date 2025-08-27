@@ -34,7 +34,7 @@ export default function Admin() {
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
   const [lastStreamStats, setLastStreamStats] = useState<StreamStats | null>(null);
-  const [streamInfo, setStreamInfo] = useState<StreamInfo>({
+  const [streamInfo, setStreamInfo>({
     title: "Sunday Service",
     pastor: "Rev Dr. Eugene-Ndu",
     scripture: "John 3:16",
@@ -132,7 +132,10 @@ export default function Admin() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode },
-        audio: true,
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+        },
       });
       localStreamRef.current = stream;
       const updatedInfo = { ...info, streamCamera: facingMode };
@@ -248,6 +251,7 @@ export default function Admin() {
                 isMuted={true}
                 showControls={true}
                 duration={streamDuration}
+                onLayoutChange={(layout) => socket.emit("stream:layoutChange", layout)}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 
