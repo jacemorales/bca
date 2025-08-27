@@ -878,16 +878,8 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 0;
 }
 
-/* On desktop, make chat card fill the grid row height */
-@media (min-width: 1024px) {
-    .watch-chat-sidebar .chat-card {
-        height: 100%;
-    }
-}
-
 .chat-card {
-  height: 70vh; /* Good default for mobile */
-  min-height: 500px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1296,10 +1288,30 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .messages-area {
-    flex-grow: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 1rem;
-    display: block;
+    height: 400px;
+}
+
+/* Custom Scrollbar for Messages Area */
+.messages-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-area::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border-radius: var(--radius-full);
+}
+
+.messages-area::-webkit-scrollbar-thumb {
+  background-color: var(--primary-light);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.messages-area::-webkit-scrollbar-thumb:hover {
+  background-color: var(--primary);
 }
 
 .message {

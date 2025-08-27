@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Socket } from "socket.io-client";
 
@@ -54,6 +53,10 @@ export default function Chat({ socket, username }: ChatProps) {
       socket.off("chat:userCount", setUserCount);
     };
   }, [socket]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const sendMessage = () => {
     if (!inputMessage.trim() || !socket.connected) return;
