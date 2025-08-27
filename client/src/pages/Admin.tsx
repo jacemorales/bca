@@ -34,7 +34,7 @@ export default function Admin() {
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
   const [lastStreamStats, setLastStreamStats] = useState<StreamStats | null>(null);
-  const [streamInfo, setStreamInfo>({
+  const [streamInfo, setStreamInfo] = useState<StreamInfo>({
     title: "Sunday Service",
     pastor: "Rev Dr. Eugene-Ndu",
     scripture: "John 3:16",
