@@ -76,11 +76,10 @@ export default function Watch() {
       if (status.online && status.info) {
         setStreamInfo(status.info);
         localStorage.setItem("bca_viewer:streamInfo", JSON.stringify(status.info));
-        // If username is already set (e.g. rejoining or retrying), go straight to watching
-        if (username) {
-            setUiState("watching");
+        if (uiState === 'promptRejoin' && username) {
+            setUiState('watching');
         } else {
-            setUiState("promptUsername");
+            setUiState('promptUsername');
         }
       } else {
         if (uiState === 'streamPaused') {
@@ -241,7 +240,6 @@ function WatchingView({ streamInfo, username, onLeave }: { streamInfo: StreamInf
         }
     }, 1000);
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
     socket.emit("role:viewer", { username });
 
     const handleOffer = async (data: { from: string; sdp: any }) => {
