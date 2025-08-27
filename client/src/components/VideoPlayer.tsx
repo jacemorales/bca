@@ -29,18 +29,39 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   }, [stream, isMuted]);
 
   useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const handleFullscreenChange = () => {
+      const doc = document as Document & { webkitIsFullScreen: boolean; webkitFullscreenElement: Element };
+      setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
+    };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
   }, []);
 
   const toggleFullscreen = () => {
-    const player = playerWrapperRef.current;
-    if (!player) return;
-    if (!document.fullscreenElement) {
-      player.requestFullscreen().catch(err => alert(`Error enabling full-screen: ${err.message}`));
+    const videoElement = videoRef.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+    const playerWrapper = playerWrapperRef.current as HTMLElement & { webkitRequestFullscreen?: () => void };
+
+    const isCurrentlyFullscreen = document.fullscreenElement || (document as any).webkitFullscreenElement;
+
+    if (!isCurrentlyFullscreen) {
+      // Prioritize iOS-specific video fullscreen
+      if (videoElement?.webkitEnterFullscreen) {
+        videoElement.webkitEnterFullscreen();
+      } else if (playerWrapper?.requestFullscreen) {
+        playerWrapper.requestFullscreen().catch(err => console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`));
+      } else if (playerWrapper?.webkitRequestFullscreen) {
+        playerWrapper.webkitRequestFullscreen(); // For older Safari
+      }
     } else {
-      document.exitFullscreen();
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      }
     }
   };
 

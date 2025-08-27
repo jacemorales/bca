@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 import SermonInfo from "../components/SermonInfo";
@@ -131,7 +130,11 @@ export default function Admin() {
   const getMediaAndBroadcast = async (facingMode: 'user' | 'environment', info: StreamInfo) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode },
+        video: {
+            width: { min: 1280, ideal: 1920 },
+            height: { min: 720, ideal: 1080 },
+            facingMode
+        },
         audio: {
             echoCancellation: true,
             noiseSuppression: true,

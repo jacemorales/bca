@@ -18,7 +18,7 @@ export default function Chat({ socket, username }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [userCount, setUserCount] = useState(0);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,7 +55,10 @@ export default function Chat({ socket, username }: ChatProps) {
   }, [socket]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const messagesArea = messagesAreaRef.current;
+    if (messagesArea) {
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
   }, [messages]);
 
   const sendMessage = () => {
@@ -110,7 +113,7 @@ export default function Chat({ socket, username }: ChatProps) {
         </div>
       </div>
 
-      <div className="messages-area">
+      <div className="messages-area" ref={messagesAreaRef}>
         {messages.length === 0 ? (
           <div className="welcome-message">
             <p>Welcome to the live chat!</p>
@@ -130,7 +133,6 @@ export default function Chat({ socket, username }: ChatProps) {
             </div>
           ))
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       <div className="input-area-wrapper">
