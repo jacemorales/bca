@@ -1,5 +1,5 @@
 import { TouchEvent, MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
-import { Maximize, Minimize, RefreshCw, LogOut, Camera, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize, Minimize, Image, ZoomIn, ZoomOut, LogOut } from 'lucide-react';
 
 interface VideoPlayerProps {
   stream: MediaStream;
@@ -42,7 +42,6 @@ export default function VideoPlayer({
   const zoomOutTimer = useRef<number | null>(null);
   const zoomFeedbackTimer = useRef<number | null>(null);
 
-  const [videoLayout, setVideoLayout] = useState<'landscape' | 'portrait'>(initialLayout);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const [currentZoom, setCurrentZoom] = useState(1);
@@ -50,21 +49,29 @@ export default function VideoPlayer({
   const [isZoomOutVisible, setIsZoomOutVisible] = useState(false);
   const [zoomFeedback, setZoomFeedback] = useState('');
 
-  // Effect to set initial zoom state when capabilities are known
+  // Set video stream
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  // Set initial zoom from capabilities
   useEffect(() => {
     if (zoomCapabilities) {
-      setCurrentZoom(1); // Assuming stream starts at 1x zoom
+      // Assuming the track starts at its minimum zoom, which is usually 1
+      setCurrentZoom(zoomCapabilities.min);
     }
   }, [zoomCapabilities]);
 
-  // Effect to manage fullscreen changes
+  // Manage fullscreen change events
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Effect to show controls on initial load and clear timers on unmount
+  // Show controls on initial load and clear all timers on unmount
   useEffect(() => {
     showControlsAndResetTimer();
     return () => {
@@ -75,73 +82,65 @@ export default function VideoPlayer({
     };
   }, []);
 
-  // Set video stream
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
   const showControlsAndResetTimer = () => {
     setIsControlsVisible(true);
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = window.setTimeout(() => setIsControlsVisible(false), 3000);
   };
 
-  const handleZoom = (newZoom: number, step: number) => {
-    if (!isZoomable || !zoomCapabilities || !onZoomChange) return;
-
-    const { min, max } = zoomCapabilities;
-    const clampedZoom = Math.max(min, Math.min(newZoom, max));
-
-    setCurrentZoom(clampedZoom);
-    onZoomChange(clampedZoom);
-
-    if (clampedZoom === min && step < 0) {
-        showZoomFeedback("Min Zoom Reached");
-    } else if (clampedZoom === max && step > 0) {
-        showZoomFeedback("Max Zoom Reached");
-    }
-  };
-
   const showZoomFeedback = (message: string) => {
     setZoomFeedback(message);
     if (zoomFeedbackTimer.current) clearTimeout(zoomFeedbackTimer.current);
     zoomFeedbackTimer.current = window.setTimeout(() => setZoomFeedback(''), 1500);
-  }
+  };
 
-  const handleManualZoom = (direction: 'in' | 'out') => {
-    const step = zoomCapabilities?.step || 0.1;
+  const handleZoom = (direction: 'in' | 'out') => {
+    if (!isZoomable || !zoomCapabilities || !onZoomChange) return;
+
+    const { min, max, step } = zoomCapabilities;
     const zoomChange = direction === 'in' ? step : -step;
-    handleZoom(currentZoom + zoomChange, zoomChange);
+    const newZoom = currentZoom + zoomChange;
+    const clampedZoom = Math.max(min, Math.min(newZoom, max));
+
+    if (clampedZoom !== currentZoom) {
+      setCurrentZoom(clampedZoom);
+      onZoomChange(clampedZoom);
+    }
+
+    if (clampedZoom === min && direction === 'out') {
+        showZoomFeedback("Min Zoom Reached");
+    } else if (clampedZoom === max && direction === 'in') {
+        showZoomFeedback("Max Zoom Reached");
+    }
   };
 
-  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
-    if (!isZoomable || e.touches.length !== 2) return;
-    e.preventDefault();
-    // This part is tricky without a proper gesture library.
-    // The visual scale is not implemented anymore, only hardware zoom.
+  const handleWrapperInteraction = (e: ReactMouseEvent<HTMLDivElement> | TouchEvent<HTMLDivElement>) => {
+    showControlsAndResetTimer();
+    if ('touches' in e && isZoomable) {
+      e.preventDefault();
+    }
   };
 
-  const handleVideoWrapperClick = (e: ReactMouseEvent<HTMLDivElement, MouseEvent>) => {
-      const now = Date.now();
-      if (now - lastTap.current < 300) { // Double tap
-          const rect = e.currentTarget.getBoundingClientRect();
-          const clickX = e.clientX - rect.left;
-          if (clickX > rect.width / 2) { // Right side
-              handleManualZoom('in');
-              setIsZoomInVisible(true);
-              if (zoomInTimer.current) clearTimeout(zoomInTimer.current);
-              zoomInTimer.current = window.setTimeout(() => setIsZoomInVisible(false), 2000);
-          } else { // Left side
-              handleManualZoom('out');
-              setIsZoomOutVisible(true);
-              if (zoomOutTimer.current) clearTimeout(zoomOutTimer.current);
-              zoomOutTimer.current = window.setTimeout(() => setIsZoomOutVisible(false), 2000);
-          }
-      }
-      lastTap.current = now;
-  }
+  const handleVideoWrapperClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!isZoomable) return;
+    const now = Date.now();
+    if (now - lastTap.current < 300) { // Double tap
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        if (clickX > rect.width / 2) { // Right side
+            handleZoom('in');
+            setIsZoomInVisible(true);
+            if (zoomInTimer.current) clearTimeout(zoomInTimer.current);
+            zoomInTimer.current = window.setTimeout(() => setIsZoomInVisible(false), 2000);
+        } else { // Left side
+            handleZoom('out');
+            setIsZoomOutVisible(true);
+            if (zoomOutTimer.current) clearTimeout(zoomOutTimer.current);
+            zoomOutTimer.current = window.setTimeout(() => setIsZoomOutVisible(false), 2000);
+        }
+    }
+    lastTap.current = now;
+  };
 
   const toggleFullscreen = () => {
     const player = playerWrapperRef.current;
@@ -156,11 +155,10 @@ export default function VideoPlayer({
   return (
     <div
         ref={playerWrapperRef}
-        className={`video-player-wrapper ${videoLayout} ${isFullscreen ? 'is-fullscreen' : ''}`}
-        onMouseMove={showControlsAndResetTimer}
-        onTouchStart={showControlsAndResetTimer}
-        onClick={isZoomable ? handleVideoWrapperClick : undefined}
-        onTouchMove={handleTouchMove}
+        className={`video-player-wrapper ${isFullscreen ? 'is-fullscreen' : ''}`}
+        onMouseMove={handleWrapperInteraction}
+        onTouchStart={handleWrapperInteraction}
+        onClick={handleVideoWrapperClick}
     >
       <video ref={videoRef} className="video-player" autoPlay muted={isMuted} playsInline />
 
@@ -183,13 +181,13 @@ export default function VideoPlayer({
             </div>
             <div
                 className={`video-zoom-control left ${isZoomOutVisible ? 'visible' : ''}`}
-                onClick={(e) => { e.stopPropagation(); handleManualZoom('out'); }}
+                onClick={(e) => { e.stopPropagation(); handleZoom('out'); }}
             >
                 <ZoomOut size={24} />
             </div>
             <div
                 className={`video-zoom-control right ${isZoomInVisible ? 'visible' : ''}`}
-                onClick={(e) => { e.stopPropagation(); handleManualZoom('in'); }}
+                onClick={(e) => { e.stopPropagation(); handleZoom('in'); }}
             >
                 <ZoomIn size={24} />
             </div>
@@ -202,7 +200,7 @@ export default function VideoPlayer({
             <div className="video-controls-overlay">
                 {onToggleLogo && (
                     <button onClick={onToggleLogo} title="Toggle Cover" className={isCoverVisible ? 'active' : ''}>
-                        <Camera size={20} />
+                        <Image size={20} />
                     </button>
                 )}
                 <button onClick={toggleFullscreen} title="Toggle Fullscreen">

@@ -792,6 +792,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .video-overlay-top {
   top: 1rem;
+  justify-content: flex-end; /* Align controls to the right */
 }
 .video-overlay-bottom {
   bottom: 1rem;
