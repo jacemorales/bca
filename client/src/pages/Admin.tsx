@@ -162,6 +162,10 @@ export default function Admin() {
     }
   };
 
+  const handleToggleLogoOverlay = () => {
+    socketRef.current?.emit("stream:toggleLogo");
+  };
+
   const renderOfflineContent = () => {
     switch(adminState) {
         case 'resuming':
@@ -216,10 +220,6 @@ export default function Admin() {
         <div className="admin-main-content">
           {adminState === 'streaming' && localStreamRef.current ? (
             <div className="card">
-  const handleToggleLogoOverlay = () => {
-    socketRef.current?.emit("stream:toggleLogo");
-  };
-
               <VideoPlayer
                 stream={localStreamRef.current}
                 viewerCount={viewerCount}
