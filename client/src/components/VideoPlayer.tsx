@@ -11,9 +11,10 @@ interface VideoPlayerProps {
   initialLayout?: 'landscape' | 'portrait';
   duration?: string;
   onLeave?: () => void;
-  isLogoOverlayVisible?: boolean;
+  isCoverVisible?: boolean;
   onToggleLogo?: () => void;
   isZoomable?: boolean;
+  showWatermark?: boolean;
 }
 
 export default function VideoPlayer({
@@ -25,9 +26,10 @@ export default function VideoPlayer({
   initialLayout = 'landscape',
   duration = "00:00",
   onLeave,
-  isLogoOverlayVisible,
+  isCoverVisible,
   onToggleLogo,
-  isZoomable
+  isZoomable,
+  showWatermark
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -118,9 +120,15 @@ export default function VideoPlayer({
         onDoubleClick={isZoomable ? handleDoubleClick : undefined}
     >
       <video ref={videoRef} style={videoStyle} className="video-player" autoPlay muted={isMuted} playsInline />
-      {isLogoOverlayVisible && (
-        <img src="/logo_transparent.png" alt="Logo Overlay" className="video-logo-overlay" />
+
+      {showWatermark && <img src="/logo_transparent.png" alt="Watermark" className="video-watermark" />}
+
+      {isCoverVisible && (
+        <div className="video-cover-overlay">
+          <img src="/logo.png" alt="Cover Logo" />
+        </div>
       )}
+
       <div className="video-overlay-ui">
         <div className="video-overlay-top">
           <div className="live-badge is-live">LIVE</div>
@@ -129,8 +137,8 @@ export default function VideoPlayer({
                 {onToggleLogo && (
                     <button
                         onClick={onToggleLogo}
-                        title="Toggle Logo Overlay"
-                        className={isLogoOverlayVisible ? 'active' : ''}
+                        title="Toggle Cover"
+                        className={isCoverVisible ? 'active' : ''}
                     >
                         <Camera size={20} />
                     </button>

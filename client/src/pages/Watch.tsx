@@ -291,7 +291,8 @@ function WatchingView({ socket, streamInfo, username, onLeave }: { socket: Socke
                     initialLayout={videoLayout}
                     duration={duration}
                     onLeave={onLeave}
-                    isLogoOverlayVisible={isLogoOverlayVisible}
+                    isCoverVisible={isLogoOverlayVisible}
+                    showWatermark={true}
                 />
             ) : (
                 <div className="video-player-wrapper">

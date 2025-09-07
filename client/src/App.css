@@ -1892,16 +1892,29 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-sm);
 }
 
-.video-logo-overlay {
+.video-cover-overlay {
   position: absolute;
-  top: 5rem;
+  inset: 0;
+  background-color: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.video-cover-overlay img {
+  width: 200px;
+  max-width: 80%;
+}
+
+.video-watermark {
+  position: absolute;
+  bottom: 1rem;
   right: 1rem;
-  width: 150px;
-  height: auto;
-  opacity: 0.9;
+  width: 100px;
+  opacity: 0.5;
   pointer-events: none;
   z-index: 5;
-  border-radius: var(--radius-md);
 }
 
 .video-controls-overlay button.active {

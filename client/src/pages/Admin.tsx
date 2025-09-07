@@ -227,7 +227,7 @@ export default function Admin() {
                 showControls={true}
                 duration={streamDuration}
                 onLayoutChange={(layout) => socketRef.current?.emit("stream:layoutChange", layout)}
-                isLogoOverlayVisible={isLogoOverlayVisible}
+                isCoverVisible={isLogoOverlayVisible}
                 onToggleLogo={handleToggleLogoOverlay}
                 isZoomable={true}
               />
