@@ -48,6 +48,7 @@ export default function VideoPlayer({
   const [isZoomInVisible, setIsZoomInVisible] = useState(false);
   const [isZoomOutVisible, setIsZoomOutVisible] = useState(false);
   const [zoomFeedback, setZoomFeedback] = useState('');
+  const [zoomFeedbackType, setZoomFeedbackType] = useState<'info' | 'error'>('info');
 
   // Set video stream
   useEffect(() => {
@@ -88,14 +89,20 @@ export default function VideoPlayer({
     controlsTimerRef.current = window.setTimeout(() => setIsControlsVisible(false), 3000);
   };
 
-  const showZoomFeedback = (message: string) => {
+  const showZoomFeedback = (message: string, type: 'info' | 'error' = 'info') => {
     setZoomFeedback(message);
+    setZoomFeedbackType(type);
     if (zoomFeedbackTimer.current) clearTimeout(zoomFeedbackTimer.current);
     zoomFeedbackTimer.current = window.setTimeout(() => setZoomFeedback(''), 1500);
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
-    if (!isZoomable || !zoomCapabilities || !onZoomChange) return;
+    if (!isZoomable || !onZoomChange) return;
+
+    if (!zoomCapabilities) {
+      showZoomFeedback("Zoom not supported", 'error');
+      return;
+    }
 
     const { min, max, step } = zoomCapabilities;
     const zoomChange = direction === 'in' ? step : -step;
@@ -108,9 +115,9 @@ export default function VideoPlayer({
     }
 
     if (clampedZoom === min && direction === 'out') {
-        showZoomFeedback("Min Zoom Reached");
+        showZoomFeedback("Min Zoom Reached", 'error');
     } else if (clampedZoom === max && direction === 'in') {
-        showZoomFeedback("Max Zoom Reached");
+        showZoomFeedback("Max Zoom Reached", 'error');
     }
   };
 
@@ -176,7 +183,7 @@ export default function VideoPlayer({
 
       {isZoomable && (
           <>
-            <div className={`video-zoom-indicator ${zoomFeedback ? 'visible' : ''}`}>
+            <div className={`video-zoom-indicator ${zoomFeedback ? 'visible' : ''} ${zoomFeedbackType}`}>
                 {zoomFeedback || `x${currentZoom.toFixed(1)}`}
             </div>
             <div

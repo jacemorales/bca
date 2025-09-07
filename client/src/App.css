@@ -1967,6 +1967,10 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 1;
 }
 
+.video-zoom-indicator.error {
+  background-color: var(--danger);
+}
+
 .video-zoom-control {
   position: absolute;
   top: 50%;
