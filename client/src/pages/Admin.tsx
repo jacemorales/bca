@@ -175,6 +175,13 @@ export default function Admin() {
     socketRef.current?.emit("stream:toggleLogo");
   };
 
+  const handleZoomChange = (newZoom: number) => {
+    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] });
+    }
+  };
+
   const renderOfflineContent = () => {
     switch(adminState) {
         case 'resuming':
@@ -235,13 +242,6 @@ export default function Admin() {
                 isMuted={true}
                 showControls={true}
                 duration={streamDuration}
-  const handleZoomChange = (newZoom: number) => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] });
-    }
-  };
-
                 onLayoutChange={(layout) => socketRef.current?.emit("stream:layoutChange", layout)}
                 isCoverVisible={isLogoOverlayVisible}
                 onToggleLogo={handleToggleLogoOverlay}
