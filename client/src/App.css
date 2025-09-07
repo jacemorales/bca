@@ -1002,11 +1002,19 @@ h1, h2, h3, h4, h5, h6 {
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
-    z-index: 20;
+    z-index: 30;
 }
-.video-player-wrapper:hover .video-overlay-ui,
-.video-player-wrapper:fullscreen .video-overlay-ui {
+
+.video-overlay-ui.visible {
     opacity: 1;
+    pointer-events: auto;
+}
+
+.live-badge-wrapper {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 25; /* Above video, below controls */
 }
 
 .video-overlay-ui > * {
@@ -1053,7 +1061,7 @@ h1, h2, h3, h4, h5, h6 {
     /* Removed position: absolute as requested */
     top: 1rem;
     right: 1rem;
-    z-index: 10;
+    z-index: 31;
     display: flex;
     gap: 0.5rem;
 }
@@ -1935,4 +1943,57 @@ h1, h2, h3, h4, h5, h6 {
 /* Make sure the spinner and text align nicely in the button */
 .btn > .loading-spinner-small {
   margin-right: 0.5rem;
+}
+
+.video-zoom-indicator {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0,0,0,0.6);
+  color: white;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  z-index: 25;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.video-zoom-indicator.visible {
+  opacity: 1;
+}
+
+.video-zoom-control {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  background-color: rgba(0,0,0,0.5);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 25;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.video-zoom-control.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-zoom-control.left {
+  left: 1rem;
+}
+
+.video-zoom-control.right {
+  right: 1rem;
 }
