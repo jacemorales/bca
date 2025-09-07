@@ -1,6 +1,6 @@
 // VideoPlayer.tsx
-import { useEffect, useRef, useState } from 'react';
-import { Maximize, Minimize, RefreshCw, LogOut } from 'lucide-react';
+import { TouchEvent, useEffect, useRef, useState } from 'react';
+import { Maximize, Minimize, RefreshCw, LogOut, Camera } from 'lucide-react';
 
 interface VideoPlayerProps {
   stream: MediaStream;
@@ -11,14 +11,31 @@ interface VideoPlayerProps {
   initialLayout?: 'landscape' | 'portrait';
   duration?: string;
   onLeave?: () => void;
+  isLogoOverlayVisible?: boolean;
+  onToggleLogo?: () => void;
+  isZoomable?: boolean;
 }
 
-export default function VideoPlayer({ stream, viewerCount, isMuted, showControls, onLayoutChange, initialLayout = 'landscape', duration = "00:00", onLeave }: VideoPlayerProps) {
+export default function VideoPlayer({
+  stream,
+  viewerCount,
+  isMuted,
+  showControls,
+  onLayoutChange,
+  initialLayout = 'landscape',
+  duration = "00:00",
+  onLeave,
+  isLogoOverlayVisible,
+  onToggleLogo,
+  isZoomable
+}: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
+  const initialTouchDistance = useRef<number | null>(null);
 
   const [videoLayout, setVideoLayout] = useState<'landscape' | 'portrait'>(initialLayout);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
 
   useEffect(() => {
     if (videoRef.current) {
@@ -57,14 +74,67 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
     }
   }
 
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+        initialTouchDistance.current = Math.hypot(
+            e.touches[0].pageX - e.touches[1].pageX,
+            e.touches[0].pageY - e.touches[1].pageY
+        );
+    }
+  };
+
+  const handleTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+      if (e.touches.length === 2 && initialTouchDistance.current) {
+          const newTouchDistance = Math.hypot(
+              e.touches[0].pageX - e.touches[1].pageX,
+              e.touches[0].pageY - e.touches[1].pageY
+          );
+          const scale = Math.max(1, Math.min(transform.scale * (newTouchDistance / initialTouchDistance.current), 4));
+          setTransform({ ...transform, scale });
+          initialTouchDistance.current = newTouchDistance;
+      }
+  };
+
+  const handleTouchEnd = () => {
+      initialTouchDistance.current = null;
+  };
+
+  const handleDoubleClick = () => {
+    setTransform({ scale: 1, x: 0, y: 0 }); // Reset zoom on double tap/click
+  };
+
+  const videoStyle = {
+    transform: `scale(${transform.scale})`,
+    transition: 'transform 0.1s ease-out',
+  };
+
   return (
-    <div ref={playerWrapperRef} className={`video-player-wrapper ${videoLayout}`}>
-      <video ref={videoRef} className="video-player" autoPlay muted={isMuted} playsInline />
+    <div
+        ref={playerWrapperRef}
+        className={`video-player-wrapper ${videoLayout}`}
+        onTouchStart={isZoomable ? handleTouchStart : undefined}
+        onTouchMove={isZoomable ? handleTouchMove : undefined}
+        onTouchEnd={isZoomable ? handleTouchEnd : undefined}
+        onDoubleClick={isZoomable ? handleDoubleClick : undefined}
+    >
+      <video ref={videoRef} style={videoStyle} className="video-player" autoPlay muted={isMuted} playsInline />
+      {isLogoOverlayVisible && (
+        <img src="/logo_transparent.png" alt="Logo Overlay" className="video-logo-overlay" />
+      )}
       <div className="video-overlay-ui">
         <div className="video-overlay-top">
           <div className="live-badge is-live">LIVE</div>
           {showControls && (
             <div className="video-controls-overlay">
+                {onToggleLogo && (
+                    <button
+                        onClick={onToggleLogo}
+                        title="Toggle Logo Overlay"
+                        className={isLogoOverlayVisible ? 'active' : ''}
+                    >
+                        <Camera size={20} />
+                    </button>
+                )}
                 <button onClick={toggleVideoLayout} title="Toggle Aspect Ratio">
                 <RefreshCw size={20} />
                 </button>

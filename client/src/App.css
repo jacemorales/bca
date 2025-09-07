@@ -1891,3 +1891,34 @@ h1, h2, h3, h4, h5, h6 {
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
 }
+
+.video-logo-overlay {
+  position: absolute;
+  top: 5rem;
+  right: 1rem;
+  width: 150px;
+  height: auto;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: var(--radius-md);
+}
+
+.video-controls-overlay button.active {
+  background-color: var(--primary);
+  color: white;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--primary-light);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Make sure the spinner and text align nicely in the button */
+.btn > .loading-spinner-small {
+  margin-right: 0.5rem;
+}

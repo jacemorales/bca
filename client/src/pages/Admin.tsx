@@ -1,10 +1,12 @@
 
 import { useEffect, useRef, useState } from "react";
-import { socket } from "../lib/socket";
+import { createSocket } from "../lib/socket";
 import SermonInfo from "../components/SermonInfo";
 import Chat from "../components/Chat";
 import SermonDetailsForm from "../components/SermonDetailsForm";
 import VideoPlayer from "../components/VideoPlayer";
+import { Socket } from "socket.io-client";
+import { LoadingButton } from "../components/LoadingButton";
 
 type PeerMap = Record<string, RTCPeerConnection>;
 type AdminState = 'offline' | 'configuring' | 'selecting_camera' | 'resuming' | 'streaming';
@@ -21,10 +23,13 @@ interface StreamInfo {
 export default function Admin() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<PeerMap>({});
+  const socketRef = useRef<Socket | null>(null);
   
   const [adminState, setAdminState] = useState<AdminState>('offline');
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
+  const [isLogoOverlayVisible, setIsLogoOverlayVisible] = useState(false);
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
     title: "Sunday Service",
     pastor: "Rev Dr. Eugene-Ndu",
@@ -39,17 +44,21 @@ export default function Admin() {
         setAdminState('resuming');
     }
 
+    const socket = createSocket();
+    socketRef.current = socket;
     socket.connect();
     socket.on("viewer:join", handleViewerJoin);
     socket.on("answer", handleAnswer);
     socket.on("ice", handleIceCandidate);
     socket.on("viewerCount", setViewerCount);
+    socket.on("stream:logoState", setIsLogoOverlayVisible);
 
     return () => {
       socket.off("viewer:join");
       socket.off("answer");
       socket.off("ice");
       socket.off("viewerCount");
+      socket.off("stream:logoState");
       cleanupStream();
       socket.disconnect();
     };
@@ -79,11 +88,11 @@ export default function Admin() {
     pcsRef.current[viewerId] = pc;
     localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
     pc.onicecandidate = (ev) => {
-      if (ev.candidate) socket.emit("ice", { targetId: viewerId, candidate: ev.candidate });
+      if (ev.candidate) socketRef.current?.emit("ice", { targetId: viewerId, candidate: ev.candidate });
     };
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
+    socketRef.current?.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
   };
 
   const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
@@ -111,6 +120,7 @@ export default function Admin() {
   }
 
   const getMediaAndBroadcast = async (facingMode: 'user' | 'environment', info: StreamInfo) => {
+    setIsActionLoading(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode },
@@ -120,7 +130,7 @@ export default function Admin() {
       setStreamInfo(info);
       setAdminState('streaming');
       localStorage.setItem("bca_admin:streamInfo", JSON.stringify(info));
-      socket.emit("role:broadcaster", info);
+      socketRef.current?.emit("role:broadcaster", info);
     } catch (err: any) {
       console.error("Failed to get media", err);
       if (facingMode === 'environment' && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
@@ -130,12 +140,14 @@ export default function Admin() {
       }
       alert("Could not access camera. Please check permissions.");
       setAdminState('offline');
+    } finally {
+        setIsActionLoading(false);
     }
   };
 
   const stopStreaming = () => {
     if (document.fullscreenElement) document.exitFullscreen();
-    socket.emit("stream:ended");
+    socketRef.current?.emit("stream:ended");
     cleanupStream();
     localStorage.removeItem("bca_admin:streamInfo");
     setAdminState('offline');
@@ -158,8 +170,8 @@ export default function Admin() {
                     <h3>Existing Stream Found</h3>
                     <p>Do you want to continue your previous stream?</p>
                     <div className="camera-selection-actions">
-                        <button onClick={resumeStream} className="btn btn-primary">Continue Stream</button>
-                        <button onClick={stopStreaming} className="btn btn-secondary">Start New Stream</button>
+                        <LoadingButton onClick={resumeStream} className="btn btn-primary" isLoading={isActionLoading} loadingText="Resuming...">Continue Stream</LoadingButton>
+                        <button onClick={() => { localStorage.removeItem("bca_admin:streamInfo"); setAdminState('configuring');}} className="btn btn-secondary">Start New Stream</button>
                     </div>
                 </div>
             )
@@ -168,8 +180,8 @@ export default function Admin() {
                 <div className="admin-offline-state">
                     <h3>Select Camera</h3>
                     <div className="camera-selection-actions">
-                        <button onClick={() => startNewStream('user')} className="btn btn-primary">Use Front Camera</button>
-                        <button onClick={() => startNewStream('environment')} className="btn btn-secondary">Use Back Camera</button>
+                        <LoadingButton onClick={() => startNewStream('user')} className="btn btn-primary" isLoading={isActionLoading} loadingText="Starting...">Use Front Camera</LoadingButton>
+                        <LoadingButton onClick={() => startNewStream('environment')} className="btn btn-secondary" isLoading={isActionLoading} loadingText="Starting...">Use Back Camera</LoadingButton>
                     </div>
                 </div>
             );
@@ -179,9 +191,9 @@ export default function Admin() {
                 <div className="admin-offline-state">
                     <h3>Ready to Go Live</h3>
                     <p>Click "Configure Stream" to set sermon details and start.</p>
-                     <button className="btn btn-primary" onClick={() => setAdminState('configuring')}>
+                     <LoadingButton className="btn btn-primary" onClick={() => setAdminState('configuring')} isLoading={isActionLoading}>
                         Configure Stream
-                    </button>
+                    </LoadingButton>
                 </div>
             );
     }
@@ -204,13 +216,20 @@ export default function Admin() {
         <div className="admin-main-content">
           {adminState === 'streaming' && localStreamRef.current ? (
             <div className="card">
+  const handleToggleLogoOverlay = () => {
+    socketRef.current?.emit("stream:toggleLogo");
+  };
+
               <VideoPlayer
                 stream={localStreamRef.current}
                 viewerCount={viewerCount}
                 isMuted={true}
                 showControls={true}
                 duration={streamDuration}
-                onLayoutChange={(layout) => socket.emit("stream:layoutChange", layout)}
+                onLayoutChange={(layout) => socketRef.current?.emit("stream:layoutChange", layout)}
+                isLogoOverlayVisible={isLogoOverlayVisible}
+                onToggleLogo={handleToggleLogoOverlay}
+                isZoomable={true}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 
@@ -218,7 +237,7 @@ export default function Admin() {
                 onUpdate={(newInfo) => {
                     const updated = { ...streamInfo, ...newInfo };
                     setStreamInfo(updated);
-                    socket.emit("stream:info", updated);
+                    socketRef.current?.emit("stream:info", updated);
                     localStorage.setItem("bca_admin:streamInfo", JSON.stringify(updated));
                 }}
               />
@@ -230,10 +249,10 @@ export default function Admin() {
           )}
         </div>
 
-        {adminState === 'streaming' && (
+        {adminState === 'streaming' && socketRef.current && (
           <div className="admin-chat-sidebar">
             <div className="card chat-card">
-              <Chat socket={socket} username="Admin" />
+              <Chat socket={socketRef.current} username="Admin" />
             </div>
           </div>
         )}

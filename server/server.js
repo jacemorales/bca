@@ -19,6 +19,7 @@ const io = new Server(server, {
 });
 
 let broadcasterId = null;
+let isLogoOverlayVisible = false;
 let endStreamTimeout = null; // Timeout to end stream after grace period
 const viewers = new Map(); // Map to store viewer data (id -> username)
 const activeStreamInfo = {
@@ -88,6 +89,9 @@ io.on("connection", (socket) => {
       console.log("notified broadcaster to create offer for:", socket.id);
     }
     
+    // Also send the current logo state
+    socket.emit("stream:logoState", isLogoOverlayVisible);
+
     // Emit user join event for chat
     io.emit("chat:userJoin", username);
   });
@@ -129,6 +133,13 @@ io.on("connection", (socket) => {
   socket.on("stream:ended", () => {
     if (socket.id === broadcasterId) {
       io.emit("stream:ended");
+    }
+  });
+
+  socket.on("stream:toggleLogo", () => {
+    if (socket.id === broadcasterId) {
+      isLogoOverlayVisible = !isLogoOverlayVisible;
+      io.emit("stream:logoState", isLogoOverlayVisible);
     }
   });
 
@@ -226,6 +237,7 @@ io.on("connection", (socket) => {
       endStreamTimeout = setTimeout(() => {
         console.log("Grace period expired. Ending stream for good.");
         broadcasterId = null;
+        isLogoOverlayVisible = false; // Reset logo state
         io.emit("stream:ended"); // Notify all clients the stream is over
 
         // Reset stream info
