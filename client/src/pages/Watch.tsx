@@ -202,6 +202,7 @@ export default function Watch() {
                     <h3>Connection Error</h3>
                     <p>Could not connect to the server. It might be temporarily down. Please try again later.</p>
                     <div className="watch-actions">
+                        <button onClick={() => window.location.reload()} className="btn btn-primary">Refresh Page</button>
                          <Link to="/events" className="btn btn-secondary">View Events</Link>
                     </div>
                 </>

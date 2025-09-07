@@ -139,7 +139,16 @@ io.on("connection", (socket) => {
   socket.on("stream:toggleLogo", () => {
     if (socket.id === broadcasterId) {
       isLogoOverlayVisible = !isLogoOverlayVisible;
-      io.emit("stream:logoState", isLogoOverlayVisible);
+
+      // Broadcast to the admin
+      if (broadcasterId) {
+        io.to(broadcasterId).emit("stream:logoState", isLogoOverlayVisible);
+      }
+
+      // Broadcast to all viewers
+      for (const viewerId of viewers.keys()) {
+        io.to(viewerId).emit("stream:logoState", isLogoOverlayVisible);
+      }
     }
   });
 

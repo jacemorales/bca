@@ -7,7 +7,7 @@ export default function Give() {
 
   const bankDetails = {
     bankName: "UBA",
-    accountNumber: "1234567890",
+    accountNumber: "1023007898",
     accountName: "Believers Commonwealth Assembly"
   };
 
