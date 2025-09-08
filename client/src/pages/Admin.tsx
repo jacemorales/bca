@@ -30,6 +30,7 @@ export default function Admin() {
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
   const [isLogoOverlayVisible, setIsLogoOverlayVisible] = useState(false);
+  const [zoomCapabilities, setZoomCapabilities] = useState<MediaTrackCapabilities['zoom'] | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
     title: "Sunday Service",
     pastor: "Rev Dr. Eugene-Ndu",
@@ -128,6 +129,13 @@ export default function Admin() {
       });
       localStreamRef.current = stream;
 
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && 'zoom' in videoTrack.getCapabilities()) {
+        setZoomCapabilities(videoTrack.getCapabilities().zoom);
+      } else {
+        setZoomCapabilities(null);
+      }
+
       setStreamInfo(info);
       setAdminState('streaming');
       localStorage.setItem("bca_admin:streamInfo", JSON.stringify(info));
@@ -165,6 +173,17 @@ export default function Admin() {
 
   const handleToggleLogoOverlay = () => {
     socketRef.current?.emit("stream:toggleLogo");
+  };
+
+  const handleZoomChange = (newZoom: number) => {
+    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (videoTrack && 'zoom' in videoTrack.getSettings()) {
+      try {
+        videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] });
+      } catch (error) {
+        console.error("Failed to apply zoom constraints:", error);
+      }
+    }
   };
 
   const renderOfflineContent = () => {
@@ -231,6 +250,8 @@ export default function Admin() {
                 isCoverVisible={isLogoOverlayVisible}
                 onToggleLogo={handleToggleLogoOverlay}
                 isZoomable={true}
+                onZoomChange={handleZoomChange}
+                zoomCapabilities={zoomCapabilities}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 

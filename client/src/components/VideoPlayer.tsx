@@ -14,6 +14,8 @@ interface VideoPlayerProps {
   onToggleLogo?: () => void;
   isZoomable?: boolean;
   showWatermark?: boolean;
+  onZoomChange?: (zoom: number) => void;
+  zoomCapabilities?: MediaTrackCapabilities['zoom'] | null;
 }
 
 export default function VideoPlayer({
@@ -28,7 +30,9 @@ export default function VideoPlayer({
   isCoverVisible,
   onToggleLogo,
   isZoomable,
-  showWatermark
+  showWatermark,
+  onZoomChange,
+  zoomCapabilities
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -41,11 +45,29 @@ export default function VideoPlayer({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const [zoom, setZoom] = useState(1);
+
+  const [zoomMode, setZoomMode] = useState<'hardware' | 'visual' | 'none'>('none');
+  const [hardwareZoom, setHardwareZoom] = useState(1);
+  const [visualZoom, setVisualZoom] = useState(1);
+
   const [isZoomInVisible, setIsZoomInVisible] = useState(false);
   const [isZoomOutVisible, setIsZoomOutVisible] = useState(false);
   const [zoomIndicatorContent, setZoomIndicatorContent] = useState('');
   const [isZoomIndicatorVisible, setIsZoomIndicatorVisible] = useState(false);
+
+  // Determine zoom mode and set initial values
+  useEffect(() => {
+    if (isZoomable && zoomCapabilities && onZoomChange) {
+      setZoomMode('hardware');
+      setHardwareZoom(zoomCapabilities.min || 1);
+      showZoomIndicator('Hardware zoom enabled');
+    } else if (isZoomable) {
+      setZoomMode('visual');
+      showZoomIndicator('Using visual zoom fallback');
+    } else {
+      setZoomMode('none');
+    }
+  }, [isZoomable, zoomCapabilities, onZoomChange]);
 
   // Set video stream
   useEffect(() => {
@@ -78,34 +100,53 @@ export default function VideoPlayer({
     controlsTimerRef.current = window.setTimeout(() => setIsControlsVisible(false), 3000);
   };
 
-  const showZoomIndicator = (text: string) => {
+  const showZoomIndicator = (text: string, duration = 2000) => {
     setZoomIndicatorContent(text);
     setIsZoomIndicatorVisible(true);
     if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current);
     zoomIndicatorTimer.current = window.setTimeout(() => {
       setIsZoomIndicatorVisible(false);
       setZoomIndicatorContent('');
-    }, 2000); // The indicator itself has a resetting timer
+    }, duration);
   };
 
-  const handleZoom = (newZoom: number) => {
-    const min = 1;
-    const max = 16;
-    const clampedZoom = Math.max(min, Math.min(newZoom, max));
-    setZoom(clampedZoom);
-    showZoomIndicator(`x${clampedZoom.toFixed(1)}`);
+  const showAndResetZoomIndicator = (text: string, isError = false) => {
+    setZoomIndicatorContent(text);
+    setIsZoomIndicatorVisible(true);
+    if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current);
+    zoomIndicatorTimer.current = window.setTimeout(() => {
+      setIsZoomIndicatorVisible(false);
+      setZoomIndicatorContent('');
+    }, isError ? 2500 : 1500);
+  }
 
-    if (clampedZoom === min && newZoom < min) {
-      showZoomIndicator("Min Zoom Reached");
-    } else if (clampedZoom === max && newZoom > max) {
-      showZoomIndicator("Max Zoom Reached");
+  const handleZoom = (newZoom: number, mode: 'hardware' | 'visual') => {
+    if (mode === 'hardware' && zoomCapabilities && onZoomChange) {
+      const { min, max } = zoomCapabilities;
+      const clampedZoom = Math.max(min, Math.min(newZoom, max));
+      if (clampedZoom !== hardwareZoom) {
+        setHardwareZoom(clampedZoom);
+        onZoomChange(clampedZoom);
+        showAndResetZoomIndicator(`x${clampedZoom.toFixed(1)}`);
+      }
+      if (clampedZoom === min && newZoom < min) showAndResetZoomIndicator(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
+      else if (clampedZoom === max && newZoom > max) showAndResetZoomIndicator(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
+    } else { // visual
+      const [min, max] = [1, 16];
+      const clampedZoom = Math.max(min, Math.min(newZoom, max));
+      setVisualZoom(clampedZoom);
+      showAndResetZoomIndicator(`x${clampedZoom.toFixed(1)}`);
+      if (clampedZoom === min && newZoom < min) showAndResetZoomIndicator(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
+      else if (clampedZoom === max && newZoom > max) showAndResetZoomIndicator(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
     }
   };
 
   const handleManualZoom = (direction: 'in' | 'out') => {
-    const step = 0.5;
-    const zoomChange = direction === 'in' ? step : -step;
-    handleZoom(zoom + zoomChange);
+    if (zoomMode === 'hardware' && zoomCapabilities) {
+      handleZoom(hardwareZoom + (direction === 'in' ? zoomCapabilities.step : -zoomCapabilities.step), 'hardware');
+    } else if (zoomMode === 'visual') {
+      handleZoom(visualZoom + (direction === 'in' ? 0.5 : -0.5), 'visual');
+    }
   };
 
   const handlePinchStart = (e: TouchEvent<HTMLDivElement>) => {
@@ -120,7 +161,7 @@ export default function VideoPlayer({
       e.preventDefault();
       const newPinchDistance = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
       const ratio = newPinchDistance / initialPinchDistance.current;
-      handleZoom(zoom * ratio);
+      handleZoom(visualZoom * ratio, 'visual'); // Pinch always controls visual zoom for reliability
       initialPinchDistance.current = newPinchDistance;
     }
   };
@@ -160,8 +201,9 @@ export default function VideoPlayer({
     }
   };
 
-  const videoStyle = { transform: `scale(${zoom})` };
-  const isFeedbackError = zoomIndicatorContent.includes("Reached");
+  const videoStyle = { transform: `scale(${visualZoom})` };
+  const currentZoomForDisplay = zoomMode === 'hardware' ? hardwareZoom : visualZoom;
+  const isFeedbackError = zoomIndicatorContent.includes("Reached") || zoomIndicatorContent.includes("not supported");
 
   return (
     <div
@@ -186,7 +228,7 @@ export default function VideoPlayer({
       {isZoomable && (
           <>
             <div className={`video-zoom-indicator ${isZoomIndicatorVisible ? 'visible' : ''} ${isFeedbackError ? 'error' : 'info'}`}>
-                {zoomIndicatorContent || `x${zoom.toFixed(1)}`}
+                {zoomIndicatorContent || `x${currentZoomForDisplay.toFixed(1)}`}
             </div>
             <div
                 className={`video-zoom-control left ${isZoomOutVisible ? 'visible' : ''}`}
