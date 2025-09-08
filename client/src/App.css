@@ -1913,8 +1913,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .video-cover-overlay img {
-  width: 200px;
-  max-width: 80%;
+  width: 100%;
+  max-width: 250px;
 }
 
 .video-watermark {
@@ -1968,7 +1968,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .video-zoom-indicator.error {
-  background-color: var(--danger);
+  background-color: rgba(239, 68, 68, 0.8); /* a semi-transparent red */
+  color: white;
 }
 
 .video-zoom-control {
