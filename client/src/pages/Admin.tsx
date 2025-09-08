@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createSocket } from "../lib/socket";
 import SermonInfo from "../components/SermonInfo";
 import Chat from "../components/Chat";
@@ -175,7 +175,7 @@ export default function Admin() {
     socketRef.current?.emit("stream:toggleLogo");
   };
 
-  const handleZoomChange = (newZoom: number) => {
+  const handleZoomChange = useCallback((newZoom: number) => {
     const videoTrack = localStreamRef.current?.getVideoTracks()[0];
     if (videoTrack && 'zoom' in videoTrack.getSettings()) {
       try {
@@ -184,7 +184,7 @@ export default function Admin() {
         console.error("Failed to apply zoom constraints:", error);
       }
     }
-  };
+  }, [localStreamRef]);
 
   const renderOfflineContent = () => {
     switch(adminState) {

@@ -1,5 +1,5 @@
 import { TouchEvent, MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from 'react';
-import { Maximize, Minimize, Image, ZoomIn, ZoomOut, LogOut } from 'lucide-react';
+import { Maximize, Minimize, Image, ZoomIn, ZoomOut, LogOut, Aperture } from 'lucide-react';
 
 interface VideoPlayerProps {
   stream: MediaStream;
@@ -54,6 +54,7 @@ export default function VideoPlayer({
   const [isZoomOutVisible, setIsZoomOutVisible] = useState(false);
   const [zoomIndicatorContent, setZoomIndicatorContent] = useState('');
   const [isZoomIndicatorVisible, setIsZoomIndicatorVisible] = useState(false);
+  const [zoomFeedbackType, setZoomFeedbackType] = useState<'info' | 'error'>('info');
 
   // Determine zoom mode and set initial values
   useEffect(() => {
@@ -100,8 +101,9 @@ export default function VideoPlayer({
     controlsTimerRef.current = window.setTimeout(() => setIsControlsVisible(false), 3000);
   };
 
-  const showZoomIndicator = (text: string, duration = 2000) => {
+  const showZoomIndicator = (text: string, isError = false, duration = 2000) => {
     setZoomIndicatorContent(text);
+    setZoomFeedbackType(isError ? 'error' : 'info');
     setIsZoomIndicatorVisible(true);
     if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current);
     zoomIndicatorTimer.current = window.setTimeout(() => {
@@ -110,34 +112,30 @@ export default function VideoPlayer({
     }, duration);
   };
 
-  const showAndResetZoomIndicator = (text: string, isError = false) => {
-    setZoomIndicatorContent(text);
-    setIsZoomIndicatorVisible(true);
-    if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current);
-    zoomIndicatorTimer.current = window.setTimeout(() => {
-      setIsZoomIndicatorVisible(false);
-      setZoomIndicatorContent('');
-    }, isError ? 2500 : 1500);
-  }
-
   const handleZoom = (newZoom: number, mode: 'hardware' | 'visual') => {
+    const showMessage = (text: string, isErr = false) => {
+      showZoomIndicator(text, isErr, isErr ? 2500 : 1500);
+    }
+
     if (mode === 'hardware' && zoomCapabilities && onZoomChange) {
       const { min, max } = zoomCapabilities;
       const clampedZoom = Math.max(min, Math.min(newZoom, max));
       if (clampedZoom !== hardwareZoom) {
         setHardwareZoom(clampedZoom);
         onZoomChange(clampedZoom);
-        showAndResetZoomIndicator(`x${clampedZoom.toFixed(1)}`);
+        showMessage(`x${clampedZoom.toFixed(1)}`);
       }
-      if (clampedZoom === min && newZoom < min) showAndResetZoomIndicator(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
-      else if (clampedZoom === max && newZoom > max) showAndResetZoomIndicator(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
+      if (clampedZoom === min && newZoom < min) showMessage(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
+      else if (clampedZoom === max && newZoom > max) showMessage(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
     } else { // visual
       const [min, max] = [1, 16];
       const clampedZoom = Math.max(min, Math.min(newZoom, max));
-      setVisualZoom(clampedZoom);
-      showAndResetZoomIndicator(`x${clampedZoom.toFixed(1)}`);
-      if (clampedZoom === min && newZoom < min) showAndResetZoomIndicator(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
-      else if (clampedZoom === max && newZoom > max) showAndResetZoomIndicator(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
+      if (clampedZoom !== visualZoom) {
+        setVisualZoom(clampedZoom);
+        showMessage(`x${clampedZoom.toFixed(1)}`);
+      }
+      if (clampedZoom === min && newZoom < min) showMessage(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
+      else if (clampedZoom === max && newZoom > max) showMessage(`Max Zoom: x${clampedZoom.toFixed(1)}`, true);
     }
   };
 
@@ -203,7 +201,14 @@ export default function VideoPlayer({
 
   const videoStyle = { transform: `scale(${visualZoom})` };
   const currentZoomForDisplay = zoomMode === 'hardware' ? hardwareZoom : visualZoom;
-  const isFeedbackError = zoomIndicatorContent.includes("Reached") || zoomIndicatorContent.includes("not supported");
+  const toggleZoomMode = () => {
+    if (!zoomCapabilities) return; // Cannot toggle if hardware zoom is not supported
+    const newMode = zoomMode === 'hardware' ? 'visual' : 'hardware';
+    setZoomMode(newMode);
+    showZoomIndicator(`Switched to ${newMode} zoom`);
+  };
+
+  const isFeedbackError = zoomFeedbackType === 'error';
 
   return (
     <div
@@ -254,6 +259,11 @@ export default function VideoPlayer({
                     <button onClick={onToggleLogo} title="Toggle Cover" className={isCoverVisible ? 'active' : ''}>
                         <Image size={20} />
                     </button>
+                )}
+                {zoomCapabilities && (
+                  <button onClick={toggleZoomMode} title={`Switch to ${zoomMode === 'hardware' ? 'visual' : 'hardware'} zoom`}>
+                    <Aperture size={20} className={zoomMode === 'hardware' ? 'active' : ''} />
+                  </button>
                 )}
                 <button onClick={toggleFullscreen} title="Toggle Fullscreen">
                   {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
