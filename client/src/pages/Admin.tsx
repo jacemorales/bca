@@ -18,6 +18,7 @@ interface StreamInfo {
   notes: string;
   startTime?: string;
   streamId?: string;
+  facingMode?: 'user' | 'environment';
 }
 
 export default function Admin() {
@@ -117,7 +118,7 @@ export default function Admin() {
   };
 
   const resumeStream = async () => {
-      await getMediaAndBroadcast('user', streamInfo); // Default to user camera on resume
+      await getMediaAndBroadcast(streamInfo.facingMode || 'user', streamInfo);
   }
 
   const getMediaAndBroadcast = async (facingMode: 'user' | 'environment', info: StreamInfo) => {
@@ -136,10 +137,11 @@ export default function Admin() {
         setZoomCapabilities(null);
       }
 
-      setStreamInfo(info);
+      const newStreamInfo = { ...info, facingMode };
+      setStreamInfo(newStreamInfo);
       setAdminState('streaming');
-      localStorage.setItem("bca_admin:streamInfo", JSON.stringify(info));
-      socketRef.current?.emit("role:broadcaster", info);
+      localStorage.setItem("bca_admin:streamInfo", JSON.stringify(newStreamInfo));
+      socketRef.current?.emit("role:broadcaster", newStreamInfo);
     } catch (err: any) {
       console.error("Failed to get media", err);
       if (facingMode === 'environment' && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {

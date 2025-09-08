@@ -792,7 +792,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .video-overlay-top {
   top: 1rem;
-  justify-content: flex-end; /* Align controls to the right */
+  /* This is handled by the parent flexbox now */
 }
 .video-overlay-bottom {
   bottom: 1rem;
@@ -1060,10 +1060,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .video-controls-overlay {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    z-index: 31;
     display: flex;
     gap: 0.5rem;
 }
