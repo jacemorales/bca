@@ -1018,6 +1018,13 @@ h1, h2, h3, h4, h5, h6 {
     z-index: 25; /* Above video, below controls */
 }
 
+.video-overlay-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
 .video-overlay-ui > * {
     pointer-events: auto;
 }
@@ -1915,6 +1922,7 @@ h1, h2, h3, h4, h5, h6 {
 .video-cover-overlay img {
   width: 100%;
   max-width: 250px;
+  padding: 2rem;
 }
 
 .video-watermark {
@@ -1968,8 +1976,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .video-zoom-indicator.error {
-  background-color: rgba(239, 68, 68, 0.8); /* a semi-transparent red */
-  color: white;
+  background-color: rgba(40, 40, 40, 0.7);
+  color: var(--danger);
+  border: 1px solid var(--danger);
 }
 
 .video-zoom-control {

@@ -31,7 +31,7 @@ export default function Watch() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [username, setUsername] = useState("");
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const savedUsername = localStorage.getItem("bca:viewerName");
@@ -49,31 +49,32 @@ export default function Watch() {
 
     // Cleanup socket on component unmount
     return () => {
-        socket?.disconnect();
+      socketRef.current?.disconnect();
     }
   }, []);
 
   const handleJoinLiveClick = () => {
     setIsRetrying(true);
-    const newSocket = createSocket();
 
-    newSocket.on('connect_error', () => {
+    const socket = createSocket();
+    socketRef.current = socket;
+
+    socket.on('connect_error', () => {
       setIsRetrying(false);
       setUiState('serverError');
-      newSocket.disconnect();
+      socket.disconnect();
     });
 
-    newSocket.on('connect', () => {
+    socket.on('connect', () => {
       const savedStreamInfo = localStorage.getItem("bca_viewer:streamInfo");
       const streamId = savedStreamInfo ? JSON.parse(savedStreamInfo).streamId : null;
-      newSocket.emit("check:stream", { streamId });
+      socket.emit("check:stream", { streamId });
     });
 
-    newSocket.once("stream:status", (status) => {
+    socket.once("stream:status", (status) => {
       setIsRetrying(false);
       if (status.online && status.info) {
         setStreamInfo(status.info);
-        setSocket(newSocket); // Socket is ready and stream is confirmed, save it
         if (username) {
           setUiState("watching");
         } else {
@@ -81,11 +82,11 @@ export default function Watch() {
         }
       } else {
         setUiState("noStream");
-        newSocket.disconnect();
+        socket.disconnect();
       }
     });
 
-    newSocket.connect();
+    socket.connect();
   };
 
   const handleUsernameSubmit = (e: React.FormEvent) => {
@@ -101,12 +102,13 @@ export default function Watch() {
   const handleReturnToHome = () => {
     localStorage.removeItem("bca_viewer:streamInfo");
     setStreamInfo(null);
-    socket?.disconnect();
-    setSocket(null);
+    socketRef.current?.disconnect();
+    socketRef.current = null;
     setUiState("initial");
   };
 
   useEffect(() => {
+    const socket = socketRef.current;
     if (socket && uiState === 'watching') {
       const onStreamEnd = () => setUiState('streamEnded');
       const onStreamPause = () => setUiState('streamPaused');
@@ -119,10 +121,10 @@ export default function Watch() {
         socket.off('broadcaster:disconnect', onStreamPause);
       };
     }
-  }, [socket, uiState]);
+  }, [uiState]);
 
-  if (uiState === 'watching' && socket) {
-    return <WatchingView socket={socket} streamInfo={streamInfo!} username={username} onLeave={handleReturnToHome} />;
+  if (uiState === 'watching' && socketRef.current) {
+    return <WatchingView socket={socketRef.current} streamInfo={streamInfo!} username={username} onLeave={handleReturnToHome} />;
   }
 
   // All non-watching states are rendered here
