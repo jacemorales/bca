@@ -28,10 +28,10 @@ type UiState =
 
 export default function Watch() {
   const [uiState, setUiState] = useState<UiState>("initial");
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [username, setUsername] = useState("");
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     const savedUsername = localStorage.getItem("bca:viewerName");
@@ -47,34 +47,34 @@ export default function Watch() {
       }
     }
 
-    // Cleanup socket on component unmount
     return () => {
-      socketRef.current?.disconnect();
-    }
+      socket?.disconnect();
+    };
   }, []);
 
   const handleJoinLiveClick = () => {
-    setIsRetrying(true);
+    if (isLoading || (socket && socket.connected)) return;
 
-    const socket = createSocket();
-    socketRef.current = socket;
+    setIsLoading(true);
+    const newSocket = createSocket();
 
-    socket.on('connect_error', () => {
-      setIsRetrying(false);
+    newSocket.on('connect_error', () => {
+      setIsLoading(false);
       setUiState('serverError');
-      socket.disconnect();
+      newSocket.disconnect();
     });
 
-    socket.on('connect', () => {
+    newSocket.on('connect', () => {
       const savedStreamInfo = localStorage.getItem("bca_viewer:streamInfo");
       const streamId = savedStreamInfo ? JSON.parse(savedStreamInfo).streamId : null;
-      socket.emit("check:stream", { streamId });
+      newSocket.emit("check:stream", { streamId });
     });
 
-    socket.once("stream:status", (status) => {
-      setIsRetrying(false);
+    newSocket.once("stream:status", (status) => {
+      setIsLoading(false);
       if (status.online && status.info) {
         setStreamInfo(status.info);
+        setSocket(newSocket);
         if (username) {
           setUiState("watching");
         } else {
@@ -82,11 +82,11 @@ export default function Watch() {
         }
       } else {
         setUiState("noStream");
-        socket.disconnect();
+        newSocket.disconnect();
       }
     });
 
-    socket.connect();
+    newSocket.connect();
   };
 
   const handleUsernameSubmit = (e: React.FormEvent) => {
@@ -102,32 +102,22 @@ export default function Watch() {
   const handleReturnToHome = () => {
     localStorage.removeItem("bca_viewer:streamInfo");
     setStreamInfo(null);
-    socketRef.current?.disconnect();
-    socketRef.current = null;
+    socket?.disconnect();
+    setSocket(null);
     setUiState("initial");
   };
 
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (socket && uiState === 'watching') {
-      const onStreamEnd = () => setUiState('streamEnded');
-      const onStreamPause = () => setUiState('streamPaused');
-
-      socket.on('stream:ended', onStreamEnd);
-      socket.on('broadcaster:disconnect', onStreamPause);
-
-      return () => {
-        socket.off('stream:ended', onStreamEnd);
-        socket.off('broadcaster:disconnect', onStreamPause);
-      };
-    }
-  }, [uiState]);
-
-  if (uiState === 'watching' && socketRef.current) {
-    return <WatchingView socket={socketRef.current} streamInfo={streamInfo!} username={username} onLeave={handleReturnToHome} />;
+  if (uiState === 'watching' && socket) {
+    return <WatchingView
+              socket={socket}
+              streamInfo={streamInfo!}
+              username={username}
+              onLeave={handleReturnToHome}
+              onStreamEnd={() => setUiState('streamEnded')}
+              onStreamPause={() => setUiState('streamPaused')}
+            />;
   }
 
-  // All non-watching states are rendered here
   return (
     <div className="page-container">
         <div className="card watch-state-container">
@@ -136,7 +126,7 @@ export default function Watch() {
                     <h3>Join the Live Worship</h3>
                     <p>Experience our service in real-time with our community online.</p>
                     <div className="watch-actions">
-                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isRetrying} loadingText="Joining...">Join Live</LoadingButton>
+                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isLoading} loadingText="Joining...">Join Live</LoadingButton>
                         <Link to="/events" className="btn btn-secondary">View Events</Link>
                     </div>
                 </>
@@ -146,7 +136,7 @@ export default function Watch() {
                     <h3>Stream in Progress</h3>
                     <p>It looks like you were watching the stream. Would you like to rejoin?</p>
                     <div className="watch-actions">
-                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isRetrying} loadingText="Rejoining...">Rejoin</LoadingButton>
+                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isLoading} loadingText="Rejoining...">Rejoin</LoadingButton>
                         <button onClick={handleReturnToHome} className="btn btn-secondary">Leave</button>
                     </div>
                 </>
@@ -156,7 +146,7 @@ export default function Watch() {
                     <h3>No Active Stream</h3>
                     <p>There is no live stream at the moment. Please check our events page.</p>
                     <div className="watch-actions">
-                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isRetrying} loadingText="Checking...">Check Again</LoadingButton>
+                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isLoading} loadingText="Checking...">Check Again</LoadingButton>
                         <Link to="/events" className="btn btn-secondary">View Events</Link>
                     </div>
                 </>
@@ -190,10 +180,10 @@ export default function Watch() {
                     <h3>Stream Paused</h3>
                     <p>The host may have a temporary connection issue. Please wait or try rejoining.</p>
                     <div className="watch-actions">
-                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isRetrying} loadingText="Retrying...">
+                        <LoadingButton onClick={handleJoinLiveClick} className="btn btn-primary" isLoading={isLoading} loadingText="Retrying...">
                             Retry
                         </LoadingButton>
-                        <button onClick={handleReturnToHome} className="btn btn-secondary" disabled={isRetrying}>
+                        <button onClick={handleReturnToHome} className="btn btn-secondary" disabled={isLoading}>
                             Leave
                         </button>
                     </div>
@@ -214,13 +204,28 @@ export default function Watch() {
   );
 }
 
-function WatchingView({ socket, streamInfo, username, onLeave }: { socket: Socket, streamInfo: StreamInfo, username: string, onLeave: () => void }) {
+function WatchingView({
+  socket,
+  streamInfo,
+  username,
+  onLeave,
+  onStreamEnd,
+  onStreamPause,
+}: {
+  socket: Socket,
+  streamInfo: StreamInfo,
+  username: string,
+  onLeave: () => void,
+  onStreamEnd: () => void,
+  onStreamPause: () => void,
+}) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [videoLayout, setVideoLayout] = useState<'landscape' | 'portrait'>('landscape');
   const [duration, setDuration] = useState("00:00");
   const [isLogoOverlayVisible, setIsLogoOverlayVisible] = useState(false);
+  const [visualZoom, setVisualZoom] = useState(1);
 
   useEffect(() => {
     const durationInterval = setInterval(() => {
@@ -259,12 +264,16 @@ function WatchingView({ socket, streamInfo, username, onLeave }: { socket: Socke
     };
 
     const handleLayoutChange = (layout: 'landscape' | 'portrait') => setVideoLayout(layout);
+    const handleVisualZoom = ({ zoom }: { zoom: number }) => setVisualZoom(zoom);
 
     socket.on("offer", handleOffer);
     socket.on("ice", handleIceCandidate);
     socket.on("viewerCount", setViewerCount);
     socket.on("stream:layoutChange", handleLayoutChange);
     socket.on("stream:logoState", setIsLogoOverlayVisible);
+    socket.on("stream:visualZoom", handleVisualZoom);
+    socket.on('stream:ended', onStreamEnd);
+    socket.on('broadcaster:disconnect', onStreamPause);
 
     return () => {
       socket.off("offer");
@@ -272,10 +281,12 @@ function WatchingView({ socket, streamInfo, username, onLeave }: { socket: Socke
       socket.off("viewerCount");
       socket.off("stream:layoutChange");
       socket.off("stream:logoState");
+      socket.off("stream:visualZoom");
+      socket.off('stream:ended', onStreamEnd);
+      socket.off('broadcaster:disconnect', onStreamPause);
       pcRef.current?.close();
-      // Note: We don't disconnect the socket here because the parent `Watch` component manages its lifecycle.
     };
-  }, [username, socket]);
+  }, [username, socket, onStreamEnd, onStreamPause]);
 
   return (
     <div className="watch-page container">
@@ -296,6 +307,7 @@ function WatchingView({ socket, streamInfo, username, onLeave }: { socket: Socke
                     onLeave={onLeave}
                     isCoverVisible={isLogoOverlayVisible}
                     showWatermark={true}
+                    viewerVisualZoom={visualZoom}
                 />
             ) : (
                 <div className="video-player-wrapper">

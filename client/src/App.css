@@ -792,7 +792,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .video-overlay-top {
   top: 1rem;
-  /* This is handled by the parent flexbox now */
+  padding: 0 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .video-overlay-bottom {
   bottom: 1rem;
@@ -1911,9 +1916,9 @@ h1, h2, h3, h4, h5, h6 {
 
 .video-cover-overlay img {
   width: 100%;
-  max-width: 250px;
   padding: 2rem;
   object-fit: contain;
+  max-width: 350px;
 }
 
 .video-watermark {
@@ -1967,7 +1972,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .video-zoom-indicator.error {
-  background-color: rgba(40, 40, 40, 0.7);
+  background-color: rgba(40, 40, 40, 0.8);
   color: var(--danger);
   border: 1px solid var(--danger);
 }

@@ -139,16 +139,15 @@ io.on("connection", (socket) => {
   socket.on("stream:toggleLogo", () => {
     if (socket.id === broadcasterId) {
       isLogoOverlayVisible = !isLogoOverlayVisible;
+      // Emit to all clients, including the sender
+      io.emit("stream:logoState", isLogoOverlayVisible);
+    }
+  });
 
-      // Broadcast to the admin
-      if (broadcasterId) {
-        io.to(broadcasterId).emit("stream:logoState", isLogoOverlayVisible);
-      }
-
-      // Broadcast to all viewers
-      for (const viewerId of viewers.keys()) {
-        io.to(viewerId).emit("stream:logoState", isLogoOverlayVisible);
-      }
+  socket.on("stream:visualZoom", ({ zoom }) => {
+    if (socket.id === broadcasterId) {
+      // Emit to all other clients
+      socket.broadcast.emit("stream:visualZoom", { zoom });
     }
   });
 

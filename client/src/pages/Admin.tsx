@@ -188,6 +188,10 @@ export default function Admin() {
     }
   }, [localStreamRef]);
 
+  const handleVisualZoomChange = (zoom: number) => {
+    socketRef.current?.emit("stream:visualZoom", { zoom });
+  };
+
   const renderOfflineContent = () => {
     switch(adminState) {
         case 'resuming':
@@ -254,6 +258,7 @@ export default function Admin() {
                 isZoomable={true}
                 onZoomChange={handleZoomChange}
                 zoomCapabilities={zoomCapabilities}
+                onVisualZoomChange={handleVisualZoomChange}
               />
               <SermonInfo 
                 streamInfo={streamInfo} 

@@ -16,6 +16,8 @@ interface VideoPlayerProps {
   showWatermark?: boolean;
   onZoomChange?: (zoom: number) => void;
   zoomCapabilities?: MediaTrackCapabilities['zoom'] | null;
+  onVisualZoomChange?: (zoom: number) => void;
+  viewerVisualZoom?: number;
 }
 
 export default function VideoPlayer({
@@ -32,7 +34,9 @@ export default function VideoPlayer({
   isZoomable,
   showWatermark,
   onZoomChange,
-  zoomCapabilities
+  zoomCapabilities,
+  onVisualZoomChange,
+  viewerVisualZoom
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -132,6 +136,7 @@ export default function VideoPlayer({
       const clampedZoom = Math.max(min, Math.min(newZoom, max));
       if (clampedZoom !== visualZoom) {
         setVisualZoom(clampedZoom);
+        if(onVisualZoomChange) onVisualZoomChange(clampedZoom);
         showMessage(`x${clampedZoom.toFixed(1)}`);
       }
       if (clampedZoom === min && newZoom < min) showMessage(`Min Zoom: x${clampedZoom.toFixed(1)}`, true);
@@ -199,7 +204,7 @@ export default function VideoPlayer({
     }
   };
 
-  const videoStyle = { transform: `scale(${visualZoom})` };
+  const videoStyle = { transform: `scale(${viewerVisualZoom || visualZoom})` };
   const currentZoomForDisplay = zoomMode === 'hardware' ? hardwareZoom : visualZoom;
   const toggleZoomMode = () => {
     if (!zoomCapabilities) return; // Cannot toggle if hardware zoom is not supported
