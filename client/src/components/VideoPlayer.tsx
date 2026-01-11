@@ -23,6 +23,12 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Autoplay was prevented: ", error);
+        });
+      }
     }
   }, [stream]);
 
