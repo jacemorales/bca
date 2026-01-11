@@ -86,12 +86,12 @@ export default function Admin() {
     socket.emit("offer", { targetId: viewerId, sdp: pc.localDescription });
   };
 
-  const handleAnswer = async ({ from, sdp }: { from: string; sdp: RTCSessionDescriptionInit }) => {
+  const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
     const pc = pcsRef.current[from];
     if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
   };
 
-  const handleIceCandidate = ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
+  const handleIceCandidate = ({ from, candidate }: { from: string; candidate: any }) => {
     const pc = pcsRef.current[from];
     if (pc && candidate) pc.addIceCandidate(new RTCIceCandidate(candidate));
   };
@@ -121,10 +121,9 @@ export default function Admin() {
       setAdminState('streaming');
       localStorage.setItem("bca_admin:streamInfo", JSON.stringify(info));
       socket.emit("role:broadcaster", info);
-    } catch (err) {
-      const error = err as Error;
-      console.error("Failed to get media", error);
-      if (facingMode === 'environment' && (error.name === 'OverconstrainedError' || error.name === 'NotFoundError')) {
+    } catch (err: any) {
+      console.error("Failed to get media", err);
+      if (facingMode === 'environment' && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
         console.warn("Back camera not found, falling back to front camera.");
         getMediaAndBroadcast('user', info);
         return;

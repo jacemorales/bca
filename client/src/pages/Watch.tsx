@@ -27,7 +27,7 @@ type UiState =
 export default function Watch() {
   const [uiState, setUiState] = useState<UiState>("initial");
   const [isRetrying, setIsRetrying] = useState(false);
-  const [, setConnectionErrorCount] = useState(0);
+  const [connectionErrorCount, setConnectionErrorCount] = useState(0);
   const [username, setUsername] = useState("");
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
 
@@ -243,7 +243,7 @@ function WatchingView({ streamInfo, username, onLeave }: { streamInfo: StreamInf
     window.scrollTo({ top: 0, behavior: 'smooth' });
     socket.emit("role:viewer", { username });
 
-    const handleOffer = async (data: { from: string; sdp: RTCSessionDescriptionInit }) => {
+    const handleOffer = async (data: { from: string; sdp: any }) => {
       const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
       pcRef.current = pc;
       pc.ontrack = (ev) => setRemoteStream(ev.streams[0]);
@@ -256,7 +256,7 @@ function WatchingView({ streamInfo, username, onLeave }: { streamInfo: StreamInf
       socket.emit("answer", { targetId: data.from, sdp: pc.localDescription });
     };
 
-    const handleIceCandidate = (data: { from: string; candidate: RTCIceCandidateInit }) => {
+    const handleIceCandidate = (data: { from: string; candidate: any }) => {
       if (pcRef.current && data.candidate) pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
     };
 
@@ -268,14 +268,13 @@ function WatchingView({ streamInfo, username, onLeave }: { streamInfo: StreamInf
     socket.on("stream:layoutChange", handleLayoutChange);
 
     return () => {
-      clearInterval(durationInterval);
       socket.off("offer");
       socket.off("ice");
       socket.off("viewerCount");
       socket.off("stream:layoutChange");
       pcRef.current?.close();
     };
-  }, [username, streamInfo.startTime]);
+  }, [username]);
 
   return (
     <div className="watch-page container">
