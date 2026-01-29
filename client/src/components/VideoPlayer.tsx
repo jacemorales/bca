@@ -21,9 +21,38 @@ export default function VideoPlayer({ stream, viewerCount, isMuted, showControls
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = stream;
+
+    const handleLoadedMetadata = () => {
+      console.log('Video metadata loaded');
+    };
+
+    const handleCanPlay = () => {
+      console.log('Video can play');
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Autoplay was prevented: ", error);
+        });
+      }
+    };
+
+    const handlePlaying = () => {
+      console.log('Video is playing');
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('playing', handlePlaying);
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('playing', handlePlaying);
+    };
   }, [stream]);
 
   useEffect(() => {
