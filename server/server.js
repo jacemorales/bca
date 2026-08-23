@@ -1,247 +1,485 @@
-
 // server/server.js (ESM)
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import { log } from "console";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DB_FILE = path.join(__dirname, "db.json");
 
 const app = express();
 app.use(cors());
 const server = http.createServer(app);
 
-// Allow Vite (5173) to connect \u2014 change if your frontend host differs
+// Allow Vite to connect
 const io = new Server(server, {
-  cors: { origin: process.env.VITE_VIEWER_URL, methods: ["GET","POST"] },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-let broadcasterId = null;
-let endStreamTimeout = null; // Timeout to end stream after grace period
-const viewers = new Map(); // Map to store viewer data (id -> username)
-const activeStreamInfo = {
+// Broadcast and device state
+let activeBroadcast = {
   streamId: null,
-  startTime: null,
+  broadcastKey: null,
   title: null,
   pastor: null,
-  notes: null
+  scripture: null,
+  notes: null,
+  startTime: null,
+  status: "ENDED", // "DRAFT" | "WAITING_FOR_STREAM" | "LIVE" | "PAUSED" | "ENDED"
+  selectedDeviceId: null,
+  showLogo: false,
 };
+
+const streamingDevices = new Map(); // socket.id -> { socketId, deviceId, deviceName, isStreaming, connectedAt }
+const viewers = new Map(); // socket.id -> username
+let adminSocketId = null;
+let activityLogs = [];
+
+function loadDatabase() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      if (data.activeBroadcast) {
+        activeBroadcast = { ...activeBroadcast, ...data.activeBroadcast };
+      }
+      if (Array.isArray(data.activityLogs)) {
+        activityLogs = data.activityLogs;
+      }
+      console.log("Database loaded successfully from db.json. Active Key:", activeBroadcast.broadcastKey);
+    }
+  } catch (err) {
+    console.error("Failed to load db.json:", err.message);
+  }
+}
+
+function saveDatabase() {
+  try {
+    const data = {
+      activeBroadcast,
+      activityLogs,
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save db.json:", err.message);
+  }
+}
+
+loadDatabase();
+
+function generateBroadcastKey() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const segment = () =>
+    Array.from({ length: 4 }, () =>
+      chars[Math.floor(Math.random() * chars.length)]
+    ).join("");
+  return `BRD-${segment()}-${segment()}`;
+}
+
+function addActivityLog(text) {
+  const logItem = {
+    id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+    text,
+  };
+  activityLogs.push(logItem);
+  if (activityLogs.length > 100) activityLogs.shift();
+  saveDatabase();
+  io.emit("activity:log", logItem);
+}
 
 function emitViewerCount() {
   io.emit("viewerCount", viewers.size);
   io.emit("chat:userCount", viewers.size);
 }
 
+function getDevicesList() {
+  return Array.from(streamingDevices.values());
+}
+
 io.on("connection", (socket) => {
   console.log("socket connected:", socket.id);
 
-  // Admin registers as broadcaster
-  socket.on("role:broadcaster", (streamInfo) => {
-    // If the broadcaster is rejoining an existing stream, cancel the end-stream timeout
-    if (endStreamTimeout && streamInfo.streamId && streamInfo.streamId === activeStreamInfo.streamId) {
-      console.log("Broadcaster reconnected within grace period. Cancelling stream end.");
-      clearTimeout(endStreamTimeout);
-      endStreamTimeout = null;
-    }
+  // --- ADMIN REGISTRATION & BROADCAST CREATION ---
+  socket.on("role:admin", () => {
+    adminSocketId = socket.id;
+    console.log("Admin connected:", adminSocketId);
 
-    broadcasterId = socket.id;
-    console.log("broadcaster set:", broadcasterId);
-    
-    // Store stream info
-    activeStreamInfo.streamId = streamInfo.streamId || Date.now().toString();
-    activeStreamInfo.startTime = streamInfo.startTime || new Date().toISOString();
-    activeStreamInfo.title = streamInfo.title || "Live Stream";
-    activeStreamInfo.pastor = streamInfo.pastor || "";
-    activeStreamInfo.notes = streamInfo.notes || "";
-    
-    // Notify all clients that stream is online with stream info
-    io.emit("stream:status", { 
-      online: true,
-      info: {
-        ...activeStreamInfo
-      }
+    socket.emit("admin:init", {
+      activeBroadcast,
+      devices: getDevicesList(),
+      selectedDeviceId: activeBroadcast.selectedDeviceId,
+      showLogo: activeBroadcast.showLogo,
+      activityLogs,
+      viewerCount: viewers.size,
     });
-    
-    // Emit stream started event for chat
-    io.emit("stream:started");
   });
 
-  // Viewer registers
-  socket.on("role:viewer", (data) => {
-    const username = data.username || "Anonymous";
-    viewers.set(socket.id, username);
-    console.log("viewer registered:", socket.id, username);
-    
-    emitViewerCount();
-    
-    // Tell this viewer whether a broadcaster exists and send stream info
-    socket.emit("stream:status", { 
-      online: Boolean(broadcasterId),
-      info: broadcasterId ? activeStreamInfo : null
-    });
-    
-    // If a broadcaster exists, notify the broadcaster that a specific viewer joined
-    if (broadcasterId) {
-      io.to(broadcasterId).emit("viewer:join", { viewerId: socket.id });
-      console.log("notified broadcaster to create offer for:", socket.id);
+  // Legacy broadcaster registration fallback/adapter
+  socket.on("role:broadcaster", (streamInfo) => {
+    adminSocketId = socket.id;
+    if (!activeBroadcast.broadcastKey) {
+      activeBroadcast.broadcastKey = generateBroadcastKey();
     }
-    
-    // Emit user join event for chat
+    activeBroadcast.streamId = streamInfo.streamId || Date.now().toString();
+    activeBroadcast.startTime = streamInfo.startTime || new Date().toISOString();
+    activeBroadcast.title = streamInfo.title || "Live Stream";
+    activeBroadcast.pastor = streamInfo.pastor || "";
+    activeBroadcast.scripture = streamInfo.scripture || "";
+    activeBroadcast.notes = streamInfo.notes || "";
+    activeBroadcast.status = "WAITING_FOR_STREAM";
+
+    saveDatabase();
+    addActivityLog(`Broadcast "${activeBroadcast.title}" initialized.`);
+
+    io.emit("broadcast:updated", activeBroadcast);
+    io.emit("stream:status", {
+      online: true,
+      info: { ...activeBroadcast },
+    });
+  });
+
+  socket.on("admin:create_broadcast", (info, callback) => {
+    adminSocketId = socket.id;
+    const key = generateBroadcastKey();
+    activeBroadcast = {
+      streamId: Date.now().toString(),
+      broadcastKey: key,
+      title: info.title || "Live Broadcast",
+      pastor: info.pastor || "",
+      scripture: info.scripture || "",
+      notes: info.notes || "",
+      startTime: new Date().toISOString(),
+      status: "WAITING_FOR_STREAM",
+      selectedDeviceId: null,
+      showLogo: false,
+    };
+
+    saveDatabase();
+    addActivityLog(`Broadcast "${activeBroadcast.title}" created. Key: ${key}`);
+
+    io.emit("broadcast:updated", activeBroadcast);
+    io.emit("stream:status", {
+      online: true,
+      info: activeBroadcast,
+    });
+
+    if (typeof callback === "function") {
+      callback({ success: true, broadcast: activeBroadcast });
+    }
+  });
+
+  socket.on("admin:select_program", ({ socketId }) => {
+    const targetDevice = socketId ? streamingDevices.get(socketId) : null;
+    activeBroadcast.selectedDeviceId = socketId || null;
+
+    if (socketId && activeBroadcast.status === "WAITING_FOR_STREAM") {
+      activeBroadcast.status = "LIVE";
+    }
+
+    saveDatabase();
+    const deviceName = targetDevice ? targetDevice.deviceName : "None";
+    addActivityLog(
+      socketId
+        ? `Camera "${deviceName}" selected as Program source.`
+        : "Program source cleared."
+    );
+
+    io.emit("program:changed", {
+      selectedDeviceId: activeBroadcast.selectedDeviceId,
+      deviceName,
+    });
+    io.emit("broadcast:updated", activeBroadcast);
+  });
+
+  socket.on("admin:toggle_logo", ({ showLogo }) => {
+    activeBroadcast.showLogo = Boolean(showLogo);
+    saveDatabase();
+    addActivityLog(`Show Logo ${activeBroadcast.showLogo ? "enabled" : "disabled"}.`);
+    io.emit("logo:status", { showLogo: activeBroadcast.showLogo });
+    io.emit("broadcast:updated", activeBroadcast);
+  });
+
+  socket.on("admin:end_broadcast", () => {
+    activeBroadcast.status = "ENDED";
+    activeBroadcast.selectedDeviceId = null;
+    saveDatabase();
+    addActivityLog("Broadcast ended by Admin.");
+
+    io.emit("stream:ended");
+    io.emit("broadcast:updated", activeBroadcast);
+  });
+
+  // --- STREAMING DEVICE ROUTING & VALIDATION ---
+  socket.on("streamer:validate_key", ({ broadcastKey }, callback) => {
+    if (!broadcastKey) {
+      if (typeof callback === "function") {
+        callback({ success: false, error: "Broadcast key is required." });
+      }
+      return;
+    }
+
+    const cleanKey = broadcastKey.trim().toUpperCase();
+
+    if (!activeBroadcast.broadcastKey) {
+      if (typeof callback === "function") {
+        callback({
+          success: false,
+          error: "Broadcast not found. Please check the broadcast key and try again.",
+        });
+      }
+      return;
+    }
+
+    if (activeBroadcast.status === "ENDED") {
+      if (typeof callback === "function") {
+        callback({
+          success: false,
+          error: "This broadcast is no longer active.",
+        });
+      }
+      return;
+    }
+
+    if (activeBroadcast.broadcastKey !== cleanKey) {
+      if (typeof callback === "function") {
+        callback({ success: false, error: "Invalid broadcast key." });
+      }
+      return;
+    }
+
+    if (typeof callback === "function") {
+      callback({ success: true, broadcast: activeBroadcast });
+    }
+  });
+
+  socket.on("streamer:register", ({ broadcastKey, deviceId, deviceName }) => {
+    const cleanKey = (broadcastKey || "").trim().toUpperCase();
+    if (
+      !activeBroadcast.broadcastKey ||
+      activeBroadcast.broadcastKey !== cleanKey ||
+      activeBroadcast.status === "ENDED"
+    ) {
+      socket.emit("streamer:error", { message: "Invalid or inactive broadcast key." });
+      return;
+    }
+
+    const assignedId = deviceId || `device_${Math.random().toString(36).substr(2, 8)}`;
+    const assignedName = deviceName && deviceName.trim()
+      ? deviceName.trim()
+      : `Camera ${streamingDevices.size + 1}`;
+
+    const deviceObj = {
+      socketId: socket.id,
+      deviceId: assignedId,
+      deviceName: assignedName,
+      isStreaming: false,
+      connectedAt: new Date().toISOString(),
+    };
+
+    streamingDevices.set(socket.id, deviceObj);
+    addActivityLog(`Streaming device connected: "${assignedName}" (${assignedId})`);
+
+    socket.emit("streamer:registered", {
+      device: deviceObj,
+      broadcast: activeBroadcast,
+    });
+
+    io.emit("devices:updated", getDevicesList());
+    io.emit("device:joined", deviceObj);
+  });
+
+  socket.on("streamer:status", ({ isStreaming }) => {
+    const device = streamingDevices.get(socket.id);
+    if (device) {
+      device.isStreaming = Boolean(isStreaming);
+      addActivityLog(
+        `"${device.deviceName}" ${
+          device.isStreaming ? "started streaming" : "stopped streaming"
+        }.`
+      );
+
+      io.emit("devices:updated", getDevicesList());
+      io.emit("device:status_changed", {
+        socketId: socket.id,
+        isStreaming: device.isStreaming,
+      });
+    }
+  });
+
+  // --- VIEWER REGISTRATION ---
+  socket.on("role:viewer", (data) => {
+    const username = data?.username || "Anonymous";
+    viewers.set(socket.id, username);
+
+    emitViewerCount();
+
+    socket.emit("stream:status", {
+      online: activeBroadcast.status !== "ENDED" && activeBroadcast.status !== "DRAFT",
+      info: activeBroadcast,
+      selectedDeviceId: activeBroadcast.selectedDeviceId,
+      showLogo: activeBroadcast.showLogo,
+    });
+
     io.emit("chat:userJoin", username);
   });
 
-  // Check if stream is active
   socket.on("check:stream", (data) => {
-    // FIX: Guard against undefined data payload from new joiners
-    if (data && data.streamId && data.streamId === activeStreamInfo.streamId && broadcasterId) {
-      // This is a user with a streamId, likely rejoining.
-      socket.emit("stream:status", { 
-        online: true,
-        info: activeStreamInfo
-      });
-    } else {
-      // This is a new user checking if any stream is online.
-      socket.emit("stream:status", {
-        online: Boolean(broadcasterId),
-        info: broadcasterId ? activeStreamInfo : null
-      });
-    }
+    socket.emit("stream:status", {
+      online: activeBroadcast.status !== "ENDED" && activeBroadcast.status !== "DRAFT",
+      info: activeBroadcast,
+      selectedDeviceId: activeBroadcast.selectedDeviceId,
+      showLogo: activeBroadcast.showLogo,
+    });
   });
 
-  // Stream info updates
-  socket.on("stream:info", (info) => {
-    if (socket.id === broadcasterId) {
-      Object.assign(activeStreamInfo, info);
-      io.emit("stream:info", activeStreamInfo);
-    }
+  // --- WEBRTC SIGNALING ROUTING ---
+  // Any client (Admin or Viewer) can request a feed from a specific streaming device socket ID
+  socket.on("request:stream", ({ targetSocketId }) => {
+    if (!targetSocketId) return;
+    io.to(targetSocketId).emit("streamer:request_feed", {
+      requesterId: socket.id,
+    });
   });
 
-  // Stream offline notification
-  socket.on("stream:offline", () => {
-    if (socket.id === broadcasterId) {
-      io.emit("stream:status", { online: false });
-    }
-  });
-
-  // Stream ended notification
-  socket.on("stream:ended", () => {
-    if (socket.id === broadcasterId) {
-      io.emit("stream:ended");
-    }
-  });
-
-  // Viewer leaves explicitly
-  socket.on("leave", (data) => {
-    const username = data?.username || viewers.get(socket.id) || "Anonymous";
-    
-    if (viewers.has(socket.id)) {
-      viewers.delete(socket.id);
-      emitViewerCount();
-      
-      // Emit user leave event for chat
-      io.emit("chat:userLeave", username);
-    }
-  });
-
-  // Broadcaster -> viewer offer (targetId must be viewer socket id)
+  // Forwarding offers, answers, and ice candidates
   socket.on("offer", (payload, callback) => {
     const { targetId, sdp } = payload;
     if (!targetId) {
       if (callback) callback({ success: false, error: "No target ID provided" });
       return;
     }
-    
     io.to(targetId).emit("offer", { from: socket.id, sdp });
-    console.log("offer forwarded from broadcaster", socket.id, "to", targetId);
-    
     if (callback) callback({ success: true });
   });
 
-  // Viewer -> broadcaster answer (targetId must be broadcaster socket id)
   socket.on("answer", (payload) => {
     const { targetId, sdp } = payload;
     if (!targetId) return;
     io.to(targetId).emit("answer", { from: socket.id, sdp });
-    console.log("answer forwarded from viewer", socket.id, "to", targetId);
   });
 
-  // ICE candidates: each message includes targetId
   socket.on("ice", (payload) => {
     const { targetId, candidate } = payload;
     if (!targetId) return;
     io.to(targetId).emit("ice", { from: socket.id, candidate });
-    //console.log("ice from", socket.id, "to", targetId);
   });
 
-  // Chat functionality
+  // --- CHAT FUNCTIONALITY ---
   socket.on("chat:join", (data) => {
-    const username = data.username || "Anonymous";
-    // We already track viewers, but this is specifically for chat
+    const username = data?.username || "Anonymous";
     console.log("User joined chat:", username);
   });
-  
+
   socket.on("chat:message", (data) => {
     const messageData = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       username: data.username || "Anonymous",
       message: data.message,
       timestamp: data.timestamp || Date.now(),
-      type: "message"
+      type: "message",
     };
-    
     io.emit("chat:message", messageData);
   });
-  
+
   socket.on("chat:prayer", (data) => {
     const prayerData = {
       id: `prayer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       username: data.username || "Anonymous",
       message: data.message,
       timestamp: data.timestamp || Date.now(),
-      type: "prayer"
+      type: "prayer",
     };
-    
     io.emit("chat:prayer", prayerData);
   });
-  
+
   socket.on("chat:system", (message) => {
-    if (socket.id === broadcasterId) {
+    if (socket.id === adminSocketId) {
       io.emit("chat:system", message);
     }
   });
 
+  socket.on("stream:info", (info) => {
+    if (socket.id === adminSocketId) {
+      Object.assign(activeBroadcast, info);
+      saveDatabase();
+      io.emit("stream:info", activeBroadcast);
+      io.emit("broadcast:updated", activeBroadcast);
+    }
+  });
+
+  socket.on("stream:offline", () => {
+    if (socket.id === adminSocketId) {
+      activeBroadcast.status = "PAUSED";
+      saveDatabase();
+      io.emit("stream:status", { online: false, info: activeBroadcast });
+      io.emit("broadcast:updated", activeBroadcast);
+    }
+  });
+
+  socket.on("stream:ended", () => {
+    if (socket.id === adminSocketId) {
+      activeBroadcast.status = "ENDED";
+      activeBroadcast.selectedDeviceId = null;
+      saveDatabase();
+      io.emit("stream:ended");
+      io.emit("broadcast:updated", activeBroadcast);
+    }
+  });
+
+  socket.on("leave", (data) => {
+    const username = data?.username || viewers.get(socket.id) || "Anonymous";
+    if (viewers.has(socket.id)) {
+      viewers.delete(socket.id);
+      emitViewerCount();
+      io.emit("chat:userLeave", username);
+    }
+  });
+
+  // --- DISCONNECT HANDLING ---
   socket.on("disconnect", () => {
     console.log("disconnect:", socket.id);
-    
-    // If broadcaster disconnects, start a grace period
-    if (socket.id === broadcasterId) {
-      console.log("Broadcaster disconnected. Starting 30-second grace period.");
-      io.emit('broadcaster:disconnect'); // Notify viewers stream is paused
 
-      // Clear any existing timeout to be safe
-      if (endStreamTimeout) clearTimeout(endStreamTimeout);
-
-      endStreamTimeout = setTimeout(() => {
-        console.log("Grace period expired. Ending stream for good.");
-        broadcasterId = null;
-        io.emit("stream:ended"); // Notify all clients the stream is over
-
-        // Reset stream info
-        Object.keys(activeStreamInfo).forEach(key => activeStreamInfo[key] = null);
-
-        endStreamTimeout = null;
-      }, 30000); // 30-second grace period
+    if (socket.id === adminSocketId) {
+      console.log("Admin disconnected.");
+      adminSocketId = null;
     }
-    
-    // If viewer disconnects
+
+    if (streamingDevices.has(socket.id)) {
+      const device = streamingDevices.get(socket.id);
+      streamingDevices.delete(socket.id);
+      addActivityLog(`Streaming device disconnected: "${device.deviceName}"`);
+
+      io.emit("devices:updated", getDevicesList());
+      io.emit("device:left", { socketId: socket.id, device });
+
+      if (activeBroadcast.selectedDeviceId === socket.id) {
+        activeBroadcast.selectedDeviceId = null;
+        addActivityLog("Program source disconnected and cleared.");
+        io.emit("program:changed", {
+          selectedDeviceId: null,
+          deviceName: null,
+          unavailable: true,
+        });
+        io.emit("broadcast:updated", activeBroadcast);
+      }
+    }
+
     if (viewers.has(socket.id)) {
       const username = viewers.get(socket.id);
       viewers.delete(socket.id);
       emitViewerCount();
-      
-      // Emit user leave event for chat
       io.emit("chat:userLeave", username || "Anonymous");
     }
   });
@@ -250,7 +488,4 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Signaling Port running on http://localhost:${PORT}`);
-  console.log(`Signal URL: ${process.env.VITE_SIGNAL_URL}`);
-  console.log(`Viewer URL: ${process.env.VITE_VIEWER_URL}`);
-
 });
