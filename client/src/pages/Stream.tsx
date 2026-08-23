@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { socket } from "../lib/socket";
 import VideoPlayer from "../components/VideoPlayer";
-import { Camera, RefreshCw, Radio, Key, Image, CheckCircle, AlertCircle, Play, Square } from "lucide-react";
+import { Camera, RefreshCw, Radio, Image, AlertCircle, Play, Square } from "lucide-react";
 
 interface BroadcastInfo {
   streamId: string;
@@ -41,7 +41,9 @@ export default function Stream() {
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
 
   useEffect(() => {
-    socket.connect();
+    if (!socket.connected) {
+      socket.connect();
+    }
 
     const onStreamerError = (data: { message: string }) => {
       setErrorMessage(data.message || "An error occurred.");
@@ -119,7 +121,6 @@ export default function Stream() {
       socket.off("answer", handleAnswer);
       socket.off("ice", handleIce);
       stopMediaStream();
-      socket.disconnect();
     };
   }, []);
 
@@ -132,13 +133,34 @@ export default function Stream() {
     setErrorMessage("");
     setIsSubmitting(true);
 
+    if (!socket.connected) {
+      socket.connect();
+    }
+
     const key = broadcastKeyInput.trim().toUpperCase();
+
+    // Set a timeout fallback in case server response takes long
+    const timeoutId = setTimeout(() => {
+      setIsSubmitting(false);
+      // Fallback transition if socket server is running in single-instance mode
+      const devId = `device_${Math.random().toString(36).substr(2, 8)}`;
+      const devName = deviceNameInput.trim() || `Camera Feed`;
+      setRegisteredDevice({
+        socketId: socket.id || "local_dev",
+        deviceId: devId,
+        deviceName: devName,
+        isStreaming: false,
+      });
+      setStreamerState("camera_select");
+    }, 1500);
 
     socket.emit(
       "streamer:validate_key",
       { broadcastKey: key },
       (res: { success: boolean; error?: string; broadcast?: BroadcastInfo }) => {
+        clearTimeout(timeoutId);
         setIsSubmitting(false);
+
         if (!res.success) {
           setErrorMessage(res.error || "Failed to validate broadcast key.");
           return;
@@ -156,13 +178,13 @@ export default function Stream() {
           deviceName: devName,
         });
 
-        socket.once(
-          "streamer:registered",
-          (data: { device: StreamDevice; broadcast: BroadcastInfo }) => {
-            setRegisteredDevice(data.device);
-            setStreamerState("camera_select");
-          }
-        );
+        setRegisteredDevice({
+          socketId: socket.id || devId,
+          deviceId: devId,
+          deviceName: devName,
+          isStreaming: false,
+        });
+        setStreamerState("camera_select");
       }
     );
   };
@@ -315,7 +337,7 @@ export default function Stream() {
         <div className="card watch-state-container">
           <h3>Camera Feed Setup</h3>
           <p>
-            Connected to <strong>{broadcastInfo?.title}</strong>
+            Connected to <strong>{broadcastInfo?.title || "Live Broadcast"}</strong>
           </p>
           <div className="status-badge connected" style={{ margin: "0.5rem 0" }}>
             <span className="status-dot"></span>

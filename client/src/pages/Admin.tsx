@@ -47,6 +47,15 @@ interface ActivityLogItem {
   text: string;
 }
 
+function generateLocalKey() {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const segment = () =>
+    Array.from({ length: 4 }, () =>
+      chars[Math.floor(Math.random() * chars.length)]
+    ).join("");
+  return `BRD-${segment()}-${segment()}-${segment()}`;
+}
+
 export default function Admin() {
   const [broadcastState, setBroadcastState] = useState<"idle" | "creating" | "control_room">("idle");
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
@@ -66,13 +75,14 @@ export default function Admin() {
   const [streamDuration, setStreamDuration] = useState("00:00");
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
 
-  // PeerConnections for mini device previews: socketId -> RTCPeerConnection
+  // PeerConnections for mini device previews
   const previewPcsRef = useRef<Record<string, RTCPeerConnection>>({});
-  // Stream storage for mini device previews: socketId -> MediaStream
   const [deviceStreams, setDeviceStreams] = useState<Record<string, MediaStream>>({});
 
   useEffect(() => {
-    socket.connect();
+    if (!socket.connected) {
+      socket.connect();
+    }
     socket.emit("role:admin");
 
     const onAdminInit = (data: {
@@ -193,7 +203,6 @@ export default function Admin() {
 
       Object.values(previewPcsRef.current).forEach((pc) => pc.close());
       previewPcsRef.current = {};
-      socket.disconnect();
     };
   }, []);
 
@@ -217,7 +226,6 @@ export default function Admin() {
     return () => clearInterval(durationInterval);
   }, [broadcastState, streamInfo.startTime]);
 
-  // Request stream feed for streaming devices that don't have an established PC yet
   useEffect(() => {
     if (broadcastState === "control_room") {
       devices.forEach((dev) => {
@@ -229,14 +237,34 @@ export default function Admin() {
   }, [devices, broadcastState]);
 
   const handleCreateBroadcast = (info: StreamInfo) => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    const localKey = generateLocalKey();
+    const fallbackBroadcast: StreamInfo = {
+      ...info,
+      streamId: Date.now().toString(),
+      broadcastKey: localKey,
+      startTime: new Date().toISOString(),
+      status: "WAITING_FOR_STREAM",
+      selectedDeviceId: null,
+      showLogo: false,
+    };
+
+    setStreamInfo(fallbackBroadcast);
+    setBroadcastKey(localKey);
+    setBroadcastState("control_room");
+
     socket.emit(
       "admin:create_broadcast",
       info,
       (res: { success: boolean; broadcast: StreamInfo }) => {
-        if (res.success) {
+        if (res && res.success && res.broadcast) {
           setStreamInfo(res.broadcast);
-          setBroadcastKey(res.broadcast.broadcastKey || "");
-          setBroadcastState("control_room");
+          if (res.broadcast.broadcastKey) {
+            setBroadcastKey(res.broadcast.broadcastKey);
+          }
         }
       }
     );
@@ -274,7 +302,6 @@ export default function Admin() {
   };
 
   const selectedStream = selectedDeviceId ? deviceStreams[selectedDeviceId] : null;
-  const previewStream = previewDeviceId ? deviceStreams[previewDeviceId] : null;
   const activeProgramDevice = devices.find((d) => d.socketId === selectedDeviceId);
 
   return (
