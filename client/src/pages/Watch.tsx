@@ -296,6 +296,15 @@ function WatchingView({
     }, 1000);
 
     window.scrollTo({ top: 0, behavior: "smooth" });
+    const onConnect = () => {
+      socket.emit("role:viewer", { username });
+      if (selectedDeviceId) {
+        connectToSource(selectedDeviceId);
+      }
+    };
+
+    socket.on("connect", onConnect);
+
     socket.emit("role:viewer", { username });
 
     if (selectedDeviceId) {
@@ -391,6 +400,7 @@ function WatchingView({
 
     return () => {
       clearInterval(durationInterval);
+      socket.off("connect", onConnect);
       socket.off("offer", handleOffer);
       socket.off("ice", handleIceCandidate);
       socket.off("program:changed", handleProgramChanged);

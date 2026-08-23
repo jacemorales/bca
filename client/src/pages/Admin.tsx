@@ -75,6 +75,16 @@ export default function Admin() {
   const [streamDuration, setStreamDuration] = useState("00:00");
   const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
 
+  // Restore Admin session from localStorage if available
+  useEffect(() => {
+    const savedAdminState = localStorage.getItem("admin_broadcastState");
+    const savedKey = localStorage.getItem("admin_broadcastKey");
+    if (savedAdminState === "control_room" && savedKey) {
+      setBroadcastState("control_room");
+      setBroadcastKey(savedKey);
+    }
+  }, []);
+
   // PeerConnections for mini device previews
   const previewPcsRef = useRef<Record<string, RTCPeerConnection>>({});
   const [deviceStreams, setDeviceStreams] = useState<Record<string, MediaStream>>({});
@@ -99,11 +109,19 @@ export default function Admin() {
         setSelectedDeviceId(data.selectedDeviceId);
         setShowLogo(Boolean(data.showLogo));
         setBroadcastState("control_room");
+        localStorage.setItem("admin_broadcastState", "control_room");
+        localStorage.setItem("admin_broadcastKey", data.activeBroadcast.broadcastKey);
       }
       setDevices(data.devices || []);
       setActivityLogs(data.activityLogs || []);
       setViewerCount(data.viewerCount || 0);
     };
+
+    const onConnect = () => {
+      socket.emit("role:admin");
+    };
+
+    socket.on("connect", onConnect);
 
     const onBroadcastUpdated = (updated: StreamInfo) => {
       setStreamInfo((prev) => ({ ...prev, ...updated }));
@@ -191,6 +209,7 @@ export default function Admin() {
     socket.on("ice", onIceCandidate);
 
     return () => {
+      socket.off("connect", onConnect);
       socket.off("admin:init", onAdminInit);
       socket.off("broadcast:updated", onBroadcastUpdated);
       socket.off("devices:updated", onDevicesUpdated);
@@ -296,6 +315,8 @@ export default function Admin() {
       setSelectedDeviceId(null);
       setBroadcastKey("");
       setDeviceStreams({});
+      localStorage.removeItem("admin_broadcastState");
+      localStorage.removeItem("admin_broadcastKey");
       Object.values(previewPcsRef.current).forEach((pc) => pc.close());
       previewPcsRef.current = {};
     }

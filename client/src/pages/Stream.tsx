@@ -36,6 +36,24 @@ export default function Stream() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [supportsHardwareZoom, setSupportsHardwareZoom] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
+  const [networkStatus, setNetworkStatus] = useState<"connected" | "reconnecting" | "disconnected">("connected");
+
+  // Restore saved session if present in localStorage
+  useEffect(() => {
+    const savedKey = localStorage.getItem("streamer_broadcastKey");
+    const savedDevice = localStorage.getItem("streamer_registeredDevice");
+    if (savedKey) setBroadcastKeyInput(savedKey);
+
+    if (savedKey && savedDevice) {
+      try {
+        const parsedDev = JSON.parse(savedDevice);
+        setRegisteredDevice(parsedDev);
+        setDeviceNameInput(parsedDev.deviceName || "");
+      } catch (err) {
+        console.warn("Could not parse saved streamer session:", err);
+      }
+    }
+  }, []);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
@@ -44,6 +62,33 @@ export default function Stream() {
     if (!socket.connected) {
       socket.connect();
     }
+
+    const onConnect = () => {
+      setNetworkStatus("connected");
+      // Re-register device if we have session info
+      const savedKey = localStorage.getItem("streamer_broadcastKey");
+      const savedDeviceStr = localStorage.getItem("streamer_registeredDevice");
+      if (savedKey && savedDeviceStr) {
+        try {
+          const dev = JSON.parse(savedDeviceStr);
+          socket.emit("streamer:register", {
+            broadcastKey: savedKey,
+            deviceId: dev.deviceId,
+            deviceName: dev.deviceName,
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+
+    const onDisconnect = () => {
+      setNetworkStatus("disconnected");
+    };
+
+    const onReconnectAttempt = () => {
+      setNetworkStatus("reconnecting");
+    };
 
     const onStreamerError = (data: { message: string }) => {
       setErrorMessage(data.message || "An error occurred.");
@@ -106,6 +151,9 @@ export default function Stream() {
       }
     };
 
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.io.on("reconnect_attempt", onReconnectAttempt);
     socket.on("streamer:error", onStreamerError);
     socket.on("logo:status", onLogoStatus);
     socket.on("broadcast:updated", onBroadcastUpdated);
@@ -114,6 +162,9 @@ export default function Stream() {
     socket.on("ice", handleIce);
 
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.io.off("reconnect_attempt", onReconnectAttempt);
       socket.off("streamer:error", onStreamerError);
       socket.off("logo:status", onLogoStatus);
       socket.off("broadcast:updated", onBroadcastUpdated);
@@ -169,8 +220,8 @@ export default function Stream() {
         const bInfo = res.broadcast!;
         setBroadcastInfo(bInfo);
 
-        const devId = `device_${Math.random().toString(36).substr(2, 8)}`;
-        const devName = deviceNameInput.trim() || `Camera Feed`;
+        const devId = registeredDevice?.deviceId || `device_${Math.random().toString(36).substr(2, 8)}`;
+        const devName = deviceNameInput.trim() || registeredDevice?.deviceName || `Camera Feed`;
 
         socket.emit("streamer:register", {
           broadcastKey: key,
@@ -178,12 +229,15 @@ export default function Stream() {
           deviceName: devName,
         });
 
-        setRegisteredDevice({
+        const devObj = {
           socketId: socket.id || devId,
           deviceId: devId,
           deviceName: devName,
           isStreaming: false,
-        });
+        };
+        setRegisteredDevice(devObj);
+        localStorage.setItem("streamer_broadcastKey", key);
+        localStorage.setItem("streamer_registeredDevice", JSON.stringify(devObj));
         setStreamerState("camera_select");
       }
     );
@@ -277,6 +331,8 @@ export default function Stream() {
     setIsStreaming(false);
     setRegisteredDevice(null);
     setBroadcastInfo(null);
+    localStorage.removeItem("streamer_broadcastKey");
+    localStorage.removeItem("streamer_registeredDevice");
     setStreamerState("login");
   };
 
@@ -302,7 +358,7 @@ export default function Stream() {
               <label>Broadcast Key</label>
               <input
                 type="text"
-                placeholder="e.g. BRD-X8K4-92PQ-7M2L"
+                placeholder="e.g. BRD-X8K4-92PQ"
                 value={broadcastKeyInput}
                 onChange={(e) => setBroadcastKeyInput(e.target.value)}
                 className="watch-username-input"
@@ -372,8 +428,8 @@ export default function Stream() {
             <div className="streamer-info">
               <h4>{broadcastInfo?.title || "Live Broadcast"}</h4>
               <div className="streamer-badges">
-                <span className="status-badge connected">
-                  <span className="status-dot"></span> CONNECTED
+                <span className={`status-badge ${networkStatus === "connected" ? "connected" : "disconnected"}`}>
+                  <span className="status-dot"></span> {networkStatus.toUpperCase()}
                 </span>
                 <span className={`status-badge ${isStreaming ? "connected" : "disconnected"}`}>
                   <span className="status-dot"></span>

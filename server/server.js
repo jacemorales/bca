@@ -4,7 +4,15 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DB_FILE = path.join(__dirname, "db.json");
 
 const app = express();
 app.use(cors());
@@ -32,7 +40,39 @@ let activeBroadcast = {
 const streamingDevices = new Map(); // socket.id -> { socketId, deviceId, deviceName, isStreaming, connectedAt }
 const viewers = new Map(); // socket.id -> username
 let adminSocketId = null;
-const activityLogs = [];
+let activityLogs = [];
+
+function loadDatabase() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      if (data.activeBroadcast) {
+        activeBroadcast = { ...activeBroadcast, ...data.activeBroadcast };
+      }
+      if (Array.isArray(data.activityLogs)) {
+        activityLogs = data.activityLogs;
+      }
+      console.log("Database loaded successfully from db.json. Active Key:", activeBroadcast.broadcastKey);
+    }
+  } catch (err) {
+    console.error("Failed to load db.json:", err.message);
+  }
+}
+
+function saveDatabase() {
+  try {
+    const data = {
+      activeBroadcast,
+      activityLogs,
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save db.json:", err.message);
+  }
+}
+
+loadDatabase();
 
 function generateBroadcastKey() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -40,7 +80,7 @@ function generateBroadcastKey() {
     Array.from({ length: 4 }, () =>
       chars[Math.floor(Math.random() * chars.length)]
     ).join("");
-  return `BRD-${segment()}-${segment()}-${segment()}`;
+  return `BRD-${segment()}-${segment()}`;
 }
 
 function addActivityLog(text) {
@@ -55,6 +95,7 @@ function addActivityLog(text) {
   };
   activityLogs.push(logItem);
   if (activityLogs.length > 100) activityLogs.shift();
+  saveDatabase();
   io.emit("activity:log", logItem);
 }
 
@@ -99,6 +140,7 @@ io.on("connection", (socket) => {
     activeBroadcast.notes = streamInfo.notes || "";
     activeBroadcast.status = "WAITING_FOR_STREAM";
 
+    saveDatabase();
     addActivityLog(`Broadcast "${activeBroadcast.title}" initialized.`);
 
     io.emit("broadcast:updated", activeBroadcast);
@@ -124,6 +166,7 @@ io.on("connection", (socket) => {
       showLogo: false,
     };
 
+    saveDatabase();
     addActivityLog(`Broadcast "${activeBroadcast.title}" created. Key: ${key}`);
 
     io.emit("broadcast:updated", activeBroadcast);
@@ -145,6 +188,7 @@ io.on("connection", (socket) => {
       activeBroadcast.status = "LIVE";
     }
 
+    saveDatabase();
     const deviceName = targetDevice ? targetDevice.deviceName : "None";
     addActivityLog(
       socketId
@@ -161,6 +205,7 @@ io.on("connection", (socket) => {
 
   socket.on("admin:toggle_logo", ({ showLogo }) => {
     activeBroadcast.showLogo = Boolean(showLogo);
+    saveDatabase();
     addActivityLog(`Show Logo ${activeBroadcast.showLogo ? "enabled" : "disabled"}.`);
     io.emit("logo:status", { showLogo: activeBroadcast.showLogo });
     io.emit("broadcast:updated", activeBroadcast);
@@ -169,6 +214,7 @@ io.on("connection", (socket) => {
   socket.on("admin:end_broadcast", () => {
     activeBroadcast.status = "ENDED";
     activeBroadcast.selectedDeviceId = null;
+    saveDatabase();
     addActivityLog("Broadcast ended by Admin.");
 
     io.emit("stream:ended");
@@ -367,6 +413,7 @@ io.on("connection", (socket) => {
   socket.on("stream:info", (info) => {
     if (socket.id === adminSocketId) {
       Object.assign(activeBroadcast, info);
+      saveDatabase();
       io.emit("stream:info", activeBroadcast);
       io.emit("broadcast:updated", activeBroadcast);
     }
@@ -375,6 +422,7 @@ io.on("connection", (socket) => {
   socket.on("stream:offline", () => {
     if (socket.id === adminSocketId) {
       activeBroadcast.status = "PAUSED";
+      saveDatabase();
       io.emit("stream:status", { online: false, info: activeBroadcast });
       io.emit("broadcast:updated", activeBroadcast);
     }
@@ -384,6 +432,7 @@ io.on("connection", (socket) => {
     if (socket.id === adminSocketId) {
       activeBroadcast.status = "ENDED";
       activeBroadcast.selectedDeviceId = null;
+      saveDatabase();
       io.emit("stream:ended");
       io.emit("broadcast:updated", activeBroadcast);
     }

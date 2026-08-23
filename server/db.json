@@ -1,0 +1,15 @@
+{
+  "activeBroadcast": {
+    "streamId": null,
+    "broadcastKey": null,
+    "title": null,
+    "pastor": null,
+    "scripture": null,
+    "notes": null,
+    "startTime": null,
+    "status": "ENDED",
+    "selectedDeviceId": null,
+    "showLogo": false
+  },
+  "activityLogs": []
+}
