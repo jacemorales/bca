@@ -31,7 +31,8 @@ export default function Nav({ toggleTheme, theme }: NavProps) {
     { path: '/events', label: 'Events' },
     { path: '/give', label: 'Give' },
     { path: '/about', label: 'About' },
-    { path: '/admin', label: 'Admin' }
+    { path: '/admin', label: 'Admin' },
+    { path: '/stream', label: 'Stream Portal' }
   ];
 
   return (

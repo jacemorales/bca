@@ -5,6 +5,7 @@ import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Watch from "./pages/Watch";
 import Admin from "./pages/Admin";
+import Stream from "./pages/Stream";
 import Give from "./pages/Give";
 import Events from "./pages/Events";
 import About from "./pages/About";
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/watch" element={<Watch />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/stream" element={<Stream />} />
           <Route path="/give" element={<Give />} />
           <Route path="/events" element={<Events />} />
           <Route path="/about" element={<About />} />
