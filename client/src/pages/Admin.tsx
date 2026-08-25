@@ -56,6 +56,42 @@ function generateLocalKey() {
   return `BRD-${segment()}-${segment()}-${segment()}`;
 }
 
+function MiniVideoPreview({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = stream;
+
+    const handleCanPlay = () => {
+      video.play().catch((err) => {
+        console.error("Mini preview play error:", err);
+      });
+    };
+
+    video.addEventListener("canplay", handleCanPlay);
+
+    // Also attempt play directly in case stream is already ready
+    video.play().catch(() => {});
+
+    return () => {
+      video.removeEventListener("canplay", handleCanPlay);
+    };
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className="mini-video"
+    />
+  );
+}
+
 export default function Admin() {
   const [broadcastState, setBroadcastState] = useState<"idle" | "creating" | "control_room">("idle");
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
@@ -69,7 +105,6 @@ export default function Admin() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [devices, setDevices] = useState<StreamDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [previewDeviceId, setPreviewDeviceId] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
@@ -525,14 +560,11 @@ export default function Admin() {
                     {devices.map((dev) => {
                       const stream = deviceStreams[dev.socketId];
                       const isSelected = dev.socketId === selectedDeviceId;
-                      const isPreviewing = dev.socketId === previewDeviceId;
 
                       return (
                         <div
                           key={dev.socketId}
-                          className={`mini-stream-item card ${isSelected ? "is-selected-program" : ""} ${
-                            isPreviewing ? "is-previewing" : ""
-                          }`}
+                          className={`mini-stream-item card ${isSelected ? "is-selected-program" : ""}`}
                         >
                           <div className="mini-stream-header">
                             <span className="mini-stream-title">{dev.deviceName}</span>
@@ -548,18 +580,7 @@ export default function Admin() {
 
                           <div className="mini-video-container">
                             {stream ? (
-                              <video
-                                ref={(node) => {
-                                  if (node && node.srcObject !== stream) {
-                                    node.srcObject = stream;
-                                    node.play().catch(() => {});
-                                  }
-                                }}
-                                autoPlay
-                                muted
-                                playsInline
-                                className="mini-video"
-                              />
+                              <MiniVideoPreview stream={stream} />
                             ) : (
                               <div className="mini-video-placeholder">
                                 <span>{dev.isStreaming ? "Connecting feed..." : "Not streaming"}</span>
@@ -574,14 +595,9 @@ export default function Admin() {
                               disabled={!dev.isStreaming}
                               onClick={() => selectProgramSource(dev.socketId)}
                               className={`btn ${isSelected ? "btn-danger" : "btn-primary"} btn-xs`}
+                              style={{ width: "100%" }}
                             >
                               {isSelected ? "Currently Live" : "Set as Program"}
-                            </button>
-                            <button
-                              onClick={() => setPreviewDeviceId(isPreviewing ? null : dev.socketId)}
-                              className={`btn ${isPreviewing ? "btn-primary" : "btn-secondary"} btn-xs`}
-                            >
-                              <Eye size={12} /> {isPreviewing ? "Previewing" : "Preview"}
                             </button>
                           </div>
                         </div>
