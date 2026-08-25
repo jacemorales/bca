@@ -22,7 +22,7 @@ type StreamerState = "login" | "camera_select" | "streaming";
 
 export default function Stream() {
   const [broadcastKeyInput, setBroadcastKeyInput] = useState("");
-  const [deviceNameInput, setDeviceNameInput] = useState("Camera Feed");
+  const [deviceNameInput, setDeviceNameInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -243,15 +243,6 @@ export default function Stream() {
     );
   };
 
-  const handleUpdateDeviceName = (newName: string) => {
-    setDeviceNameInput(newName);
-    if (registeredDevice) {
-      const updatedDev = { ...registeredDevice, deviceName: newName };
-      setRegisteredDevice(updatedDev);
-      localStorage.setItem("streamer_registeredDevice", JSON.stringify(updatedDev));
-      socket.emit("streamer:update_name", { deviceName: newName });
-    }
-  };
 
   const startCamera = async (mode: "user" | "environment") => {
     setErrorMessage("");
@@ -322,7 +313,7 @@ export default function Stream() {
   const toggleLogoOverlay = () => {
     const nextState = !showLogo;
     setShowLogo(nextState);
-    socket.emit("admin:toggle_logo", { showLogo: nextState });
+    socket.emit("streamer:toggle_logo", { showLogo: nextState });
   };
 
   const stopMediaStream = () => {
@@ -378,10 +369,10 @@ export default function Stream() {
             </div>
 
             <div className="form-group" style={{ textAlign: "left", width: "100%" }}>
-              <label>Camera Feed Name</label>
+              <label>Camera Feed Name (Optional)</label>
               <input
                 type="text"
-                placeholder="Camera Feed"
+                placeholder="e.g. Main Stage / Camera 1"
                 value={deviceNameInput}
                 onChange={(e) => setDeviceNameInput(e.target.value)}
                 className="watch-username-input"
@@ -495,17 +486,6 @@ export default function Stream() {
               >
                 <Image size={18} /> {showLogo ? "Logo Active (Hide)" : "Show Logo"}
               </button>
-
-              <div className="feed-name-edit-inline" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <label style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>Feed Name:</label>
-                <input
-                  type="text"
-                  value={deviceNameInput}
-                  onChange={(e) => handleUpdateDeviceName(e.target.value)}
-                  className="watch-username-input"
-                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", margin: 0 }}
-                />
-              </div>
             </div>
           </div>
         </div>

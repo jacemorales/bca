@@ -38,6 +38,7 @@ interface StreamDevice {
   deviceId: string;
   deviceName: string;
   isStreaming: boolean;
+  showLogo?: boolean;
   connectedAt: string;
 }
 
@@ -584,6 +585,12 @@ export default function Admin() {
                             ) : (
                               <div className="mini-video-placeholder">
                                 <span>{dev.isStreaming ? "Connecting feed..." : "Not streaming"}</span>
+                              </div>
+                            )}
+
+                            {dev.showLogo && (
+                              <div className="video-logo-overlay">
+                                <img src="/logo.png" alt="Logo Overlay" className="overlay-logo-img" />
                               </div>
                             )}
 
