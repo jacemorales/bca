@@ -476,6 +476,7 @@ export default function Stream() {
             <VideoPlayer
               stream={localStream}
               viewerCount={0}
+              hideViewerCount={true}
               isMuted={true}
               showControls={true}
               showLogoOverlay={showLogo}

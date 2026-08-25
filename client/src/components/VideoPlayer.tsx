@@ -5,6 +5,7 @@ import { Maximize, Minimize, RefreshCw, LogOut, ZoomIn, ZoomOut } from 'lucide-r
 interface VideoPlayerProps {
   stream: MediaStream;
   viewerCount: number;
+  hideViewerCount?: boolean;
   isMuted: boolean;
   showControls: boolean;
   onLayoutChange?: (layout: 'landscape' | 'portrait') => void;
@@ -19,6 +20,7 @@ interface VideoPlayerProps {
 export default function VideoPlayer({
   stream,
   viewerCount,
+  hideViewerCount = false,
   isMuted,
   showControls,
   onLayoutChange,
@@ -190,8 +192,12 @@ export default function VideoPlayer({
         <div className="video-overlay-bottom">
           <div className="stream-details">
             <span>{duration}</span>
-            <span>•</span>
-            <span>{viewerCount} viewers</span>
+            {!hideViewerCount && (
+              <>
+                <span>•</span>
+                <span>{viewerCount} viewers</span>
+              </>
+            )}
           </div>
           {!isMuted && onLeave && (
             <button className="leave-stream-btn" onClick={onLeave}>
