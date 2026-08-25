@@ -157,7 +157,7 @@ export default function VideoPlayer({
       {/* Show Logo Overlay Mask */}
       {showLogoOverlay && (
         <div className="video-logo-overlay">
-          <img src="/logo_transparent.png" alt="Broadcast Logo Overlay" className="overlay-logo-img" />
+          <img src="/logo.png" alt="Broadcast Logo Overlay" className="overlay-logo-img" />
           <h2 className="overlay-logo-text">Believers Commonwealth Assembly</h2>
         </div>
       )}

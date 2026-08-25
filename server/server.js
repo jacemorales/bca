@@ -318,6 +318,17 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("streamer:update_name", ({ deviceName }) => {
+    const device = streamingDevices.get(socket.id);
+    if (device && deviceName && deviceName.trim()) {
+      const oldName = device.deviceName;
+      device.deviceName = deviceName.trim();
+      addActivityLog(`Device name updated from "${oldName}" to "${device.deviceName}"`);
+
+      io.emit("devices:updated", getDevicesList());
+    }
+  });
+
   // --- VIEWER REGISTRATION ---
   socket.on("role:viewer", (data) => {
     const username = data?.username || "Anonymous";
