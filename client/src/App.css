@@ -1188,6 +1188,8 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
   animation: slideUp 0.3s ease;
 }
 
