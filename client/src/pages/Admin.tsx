@@ -93,6 +93,28 @@ function MiniVideoPreview({ stream }: { stream: MediaStream }) {
   );
 }
 
+function MiniVideoContainer({ stream, showLogo, isSelected }: { stream: MediaStream | null; showLogo?: boolean; isSelected: boolean }) {
+  return (
+    <div className="mini-video-container">
+      {stream ? (
+        <MiniVideoPreview stream={stream} />
+      ) : (
+        <div className="mini-video-placeholder">
+          <span>Connecting feed...</span>
+        </div>
+      )}
+
+      {showLogo && (
+        <div className="video-logo-overlay">
+          <img src="/logo.png" alt="Logo Overlay" className="overlay-logo-img" />
+        </div>
+      )}
+
+      {isSelected && <div className="program-tag">PROGRAM</div>}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [broadcastState, setBroadcastState] = useState<"idle" | "creating" | "control_room">("idle");
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
@@ -579,23 +601,11 @@ export default function Admin() {
                             </span>
                           </div>
 
-                          <div className="mini-video-container">
-                            {stream ? (
-                              <MiniVideoPreview stream={stream} />
-                            ) : (
-                              <div className="mini-video-placeholder">
-                                <span>{dev.isStreaming ? "Connecting feed..." : "Not streaming"}</span>
-                              </div>
-                            )}
-
-                            {dev.showLogo && (
-                              <div className="video-logo-overlay">
-                                <img src="/logo.png" alt="Logo Overlay" className="overlay-logo-img" />
-                              </div>
-                            )}
-
-                            {isSelected && <div className="program-tag">PROGRAM</div>}
-                          </div>
+                          <MiniVideoContainer
+                            stream={stream || null}
+                            showLogo={dev.showLogo}
+                            isSelected={isSelected}
+                          />
 
                           <div className="mini-stream-actions">
                             <button
