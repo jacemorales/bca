@@ -22,7 +22,7 @@ type StreamerState = "login" | "camera_select" | "streaming";
 
 export default function Stream() {
   const [broadcastKeyInput, setBroadcastKeyInput] = useState("");
-  const [deviceNameInput, setDeviceNameInput] = useState("Camera Feed");
+  const [deviceNameInput, setDeviceNameInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,6 +57,7 @@ export default function Stream() {
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingIceCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
 
   useEffect(() => {
     if (!socket.connected) {
@@ -108,15 +109,26 @@ export default function Stream() {
       }
     };
 
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
+
     const onRequestFeed = async (data: { requesterId: string }) => {
       if (!localStreamRef.current || !data.requesterId) return;
       const { requesterId } = data;
       console.log("Feed requested by:", requesterId);
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
+      if (pcsRef.current[requesterId]) {
+        pcsRef.current[requesterId].close();
+      }
+
+      const pc = new RTCPeerConnection({ iceServers });
       pcsRef.current[requesterId] = pc;
+      pendingIceCandidatesRef.current[requesterId] = [];
 
       localStreamRef.current.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current!);
@@ -140,14 +152,33 @@ export default function Stream() {
     const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
       const pc = pcsRef.current[from];
       if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          // Flush pending ICE candidates for this peer
+          const queued = pendingIceCandidatesRef.current[from] || [];
+          for (const cand of queued) {
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+          pendingIceCandidatesRef.current[from] = [];
+        } catch (err) {
+          console.error("Error setting remote description from answer:", err);
+        }
       }
     };
 
     const handleIce = ({ from, candidate }: { from: string; candidate: any }) => {
       const pc = pcsRef.current[from];
-      if (pc && candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
+            console.warn("Error adding ICE candidate:", e)
+          );
+        } else {
+          if (!pendingIceCandidatesRef.current[from]) {
+            pendingIceCandidatesRef.current[from] = [];
+          }
+          pendingIceCandidatesRef.current[from].push(candidate);
+        }
       }
     };
 
@@ -243,15 +274,6 @@ export default function Stream() {
     );
   };
 
-  const handleUpdateDeviceName = (newName: string) => {
-    setDeviceNameInput(newName);
-    if (registeredDevice) {
-      const updatedDev = { ...registeredDevice, deviceName: newName };
-      setRegisteredDevice(updatedDev);
-      localStorage.setItem("streamer_registeredDevice", JSON.stringify(updatedDev));
-      socket.emit("streamer:update_name", { deviceName: newName });
-    }
-  };
 
   const startCamera = async (mode: "user" | "environment") => {
     setErrorMessage("");
@@ -322,7 +344,7 @@ export default function Stream() {
   const toggleLogoOverlay = () => {
     const nextState = !showLogo;
     setShowLogo(nextState);
-    socket.emit("admin:toggle_logo", { showLogo: nextState });
+    socket.emit("streamer:toggle_logo", { showLogo: nextState });
   };
 
   const stopMediaStream = () => {
@@ -378,10 +400,10 @@ export default function Stream() {
             </div>
 
             <div className="form-group" style={{ textAlign: "left", width: "100%" }}>
-              <label>Camera Feed Name</label>
+              <label>Camera Feed Name (Optional)</label>
               <input
                 type="text"
-                placeholder="Camera Feed"
+                placeholder="e.g. Main Stage / Camera 1"
                 value={deviceNameInput}
                 onChange={(e) => setDeviceNameInput(e.target.value)}
                 className="watch-username-input"
@@ -495,17 +517,6 @@ export default function Stream() {
               >
                 <Image size={18} /> {showLogo ? "Logo Active (Hide)" : "Show Logo"}
               </button>
-
-              <div className="feed-name-edit-inline" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <label style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>Feed Name:</label>
-                <input
-                  type="text"
-                  value={deviceNameInput}
-                  onChange={(e) => handleUpdateDeviceName(e.target.value)}
-                  className="watch-username-input"
-                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", margin: 0 }}
-                />
-              </div>
             </div>
           </div>
         </div>

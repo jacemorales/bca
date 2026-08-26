@@ -285,6 +285,7 @@ io.on("connection", (socket) => {
       deviceId: assignedId,
       deviceName: assignedName,
       isStreaming: false,
+      showLogo: false,
       connectedAt: new Date().toISOString(),
     };
 
@@ -318,16 +319,19 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("streamer:update_name", ({ deviceName }) => {
+  socket.on("streamer:toggle_logo", ({ showLogo }) => {
     const device = streamingDevices.get(socket.id);
-    if (device && deviceName && deviceName.trim()) {
-      const oldName = device.deviceName;
-      device.deviceName = deviceName.trim();
-      addActivityLog(`Device name updated from "${oldName}" to "${device.deviceName}"`);
-
+    if (device) {
+      device.showLogo = Boolean(showLogo);
+      addActivityLog(
+        `"${device.deviceName}" logo overlay ${
+          device.showLogo ? "enabled" : "disabled"
+        }.`
+      );
       io.emit("devices:updated", getDevicesList());
     }
   });
+
 
   // --- VIEWER REGISTRATION ---
   socket.on("role:viewer", (data) => {

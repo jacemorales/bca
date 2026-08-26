@@ -254,6 +254,7 @@ function WatchingView({
   onLeave: () => void;
 }) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const [streamInfo, setStreamInfo] = useState<StreamInfo>(initialStreamInfo);
   const [viewerCount, setViewerCount] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -272,6 +273,7 @@ function WatchingView({
       pcRef.current.close();
       pcRef.current = null;
     }
+    pendingIceCandidatesRef.current = [];
     setRemoteStream(null);
     setFeedState("connecting");
 
@@ -313,16 +315,27 @@ function WatchingView({
       setFeedState("waiting_for_feed");
     }
 
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
+
     const handleOffer = async (data: { from: string; sdp: any }) => {
       if (pcRef.current) pcRef.current.close();
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
+      const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
+      pendingIceCandidatesRef.current = [];
 
       pc.ontrack = (ev) => {
-        setRemoteStream(ev.streams[0]);
+        if (ev.streams && ev.streams[0]) {
+          setRemoteStream(ev.streams[0]);
+        } else {
+          setRemoteStream(new MediaStream([ev.track]));
+        }
         setFeedState("active");
       };
 
@@ -337,14 +350,25 @@ function WatchingView({
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { targetId: data.from, sdp: pc.localDescription });
+
+        // Flush queued ICE candidates
+        for (const cand of pendingIceCandidatesRef.current) {
+          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        }
+        pendingIceCandidatesRef.current = [];
       } catch (err) {
         console.error("Viewer error handling offer:", err);
       }
     };
 
     const handleIceCandidate = (data: { from: string; candidate: any }) => {
-      if (pcRef.current && data.candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+      const pc = pcRef.current;
+      if (data.candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+        } else {
+          pendingIceCandidatesRef.current.push(data.candidate);
+        }
       }
     };
 
