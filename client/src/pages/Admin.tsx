@@ -38,6 +38,7 @@ interface StreamDevice {
   deviceId: string;
   deviceName: string;
   isStreaming: boolean;
+  showLogo?: boolean;
   connectedAt: string;
 }
 
@@ -56,6 +57,64 @@ function generateLocalKey() {
   return `BRD-${segment()}-${segment()}-${segment()}`;
 }
 
+function MiniVideoPreview({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = stream;
+
+    const handleCanPlay = () => {
+      video.play().catch((err) => {
+        console.error("Mini preview play error:", err);
+      });
+    };
+
+    video.addEventListener("canplay", handleCanPlay);
+
+    // Also attempt play directly in case stream is already ready
+    video.play().catch(() => {});
+
+    return () => {
+      video.removeEventListener("canplay", handleCanPlay);
+    };
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className="mini-video"
+    />
+  );
+}
+
+function MiniVideoContainer({ stream, showLogo, isSelected }: { stream: MediaStream | null; showLogo?: boolean; isSelected: boolean }) {
+  return (
+    <div className="mini-video-container">
+      {stream ? (
+        <MiniVideoPreview stream={stream} />
+      ) : (
+        <div className="mini-video-placeholder">
+          <span>Connecting feed...</span>
+        </div>
+      )}
+
+      {showLogo && (
+        <div className="video-logo-overlay">
+          <img src="/logo.png" alt="Logo Overlay" className="overlay-logo-img" />
+        </div>
+      )}
+
+      {isSelected && <div className="program-tag">PROGRAM</div>}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [broadcastState, setBroadcastState] = useState<"idle" | "creating" | "control_room">("idle");
   const [streamInfo, setStreamInfo] = useState<StreamInfo>({
@@ -69,7 +128,6 @@ export default function Admin() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [devices, setDevices] = useState<StreamDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [previewDeviceId, setPreviewDeviceId] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
   const [streamDuration, setStreamDuration] = useState("00:00");
@@ -87,6 +145,7 @@ export default function Admin() {
 
   // PeerConnections for mini device previews
   const previewPcsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingIceCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
   const [deviceStreams, setDeviceStreams] = useState<Record<string, MediaStream>>({});
 
   useEffect(() => {
@@ -143,6 +202,7 @@ export default function Admin() {
         previewPcsRef.current[socketId].close();
         delete previewPcsRef.current[socketId];
       }
+      delete pendingIceCandidatesRef.current[socketId];
       setDeviceStreams((prev) => {
         const next = { ...prev };
         delete next[socketId];
@@ -154,23 +214,35 @@ export default function Admin() {
       setActivityLogs((prev) => [...prev.slice(-99), logItem]);
     };
 
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
+
     const onOffer = async ({ from, sdp }: { from: string; sdp: any }) => {
       let pc = previewPcsRef.current[from];
-      if (!pc) {
-        pc = new RTCPeerConnection({
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        });
-        previewPcsRef.current[from] = pc;
+      if (pc) {
+        pc.close();
       }
 
+      pc = new RTCPeerConnection({ iceServers });
+      previewPcsRef.current[from] = pc;
+      pendingIceCandidatesRef.current[from] = [];
+
       pc.ontrack = (ev) => {
+        let remoteStream: MediaStream;
         if (ev.streams && ev.streams[0]) {
-          const remoteStream = ev.streams[0];
-          setDeviceStreams((prev) => ({
-            ...prev,
-            [from]: remoteStream,
-          }));
+          remoteStream = ev.streams[0];
+        } else {
+          remoteStream = new MediaStream([ev.track]);
         }
+        setDeviceStreams((prev) => ({
+          ...prev,
+          [from]: remoteStream,
+        }));
       };
 
       pc.onicecandidate = (ev) => {
@@ -184,6 +256,13 @@ export default function Admin() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { targetId: from, sdp: pc.localDescription });
+
+        // Flush pending ICE candidates for this peer
+        const queued = pendingIceCandidatesRef.current[from] || [];
+        for (const cand of queued) {
+          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        }
+        pendingIceCandidatesRef.current[from] = [];
       } catch (err) {
         console.error("Error handling WebRTC offer in Admin:", err);
       }
@@ -191,10 +270,17 @@ export default function Admin() {
 
     const onIceCandidate = ({ from, candidate }: { from: string; candidate: any }) => {
       const pc = previewPcsRef.current[from];
-      if (pc && candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
-          console.warn("Error adding ICE candidate:", e)
-        );
+      if (candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
+            console.warn("Error adding ICE candidate:", e)
+          );
+        } else {
+          if (!pendingIceCandidatesRef.current[from]) {
+            pendingIceCandidatesRef.current[from] = [];
+          }
+          pendingIceCandidatesRef.current[from].push(candidate);
+        }
       }
     };
 
@@ -222,6 +308,7 @@ export default function Admin() {
 
       Object.values(previewPcsRef.current).forEach((pc) => pc.close());
       previewPcsRef.current = {};
+      pendingIceCandidatesRef.current = {};
     };
   }, []);
 
@@ -324,6 +411,17 @@ export default function Admin() {
 
   const selectedStream = selectedDeviceId ? deviceStreams[selectedDeviceId] : null;
   const activeProgramDevice = devices.find((d) => d.socketId === selectedDeviceId);
+
+  // Priority Output Determination for Admin Program View (Matches Viewer Output):
+  // 1. Admin logo active? -> ADMIN LOGO
+  // 2. No selected program device? -> Waiting UI
+  // 3. Program device logo active? -> STREAMER LOGO
+  // 4. Remote video stream ready? -> STREAM VIDEO
+  // 5. Waiting UI
+  const showAdminLogoLayer = showLogo;
+  const showStreamerLogoLayer = !showLogo && Boolean(activeProgramDevice?.showLogo);
+  const showVideoPlayer = !showLogo && !showStreamerLogoLayer && Boolean(selectedStream);
+  const showWaitingScreen = !showLogo && !showStreamerLogoLayer && !showVideoPlayer;
 
   return (
     <div className="admin-control-room container">
@@ -448,16 +546,30 @@ export default function Admin() {
                 </div>
 
                 <div className="program-player-wrapper">
-                  {selectedStream ? (
+                  {showAdminLogoLayer && (
+                    <div className="video-logo-overlay">
+                      <img src="/logo.png" alt="Admin Logo Overlay" className="overlay-logo-img" />
+                    </div>
+                  )}
+
+                  {showStreamerLogoLayer && (
+                    <div className="video-logo-overlay">
+                      <img src="/logo.png" alt="Streamer Logo Overlay" className="overlay-logo-img" />
+                    </div>
+                  )}
+
+                  {showVideoPlayer && selectedStream && (
                     <VideoPlayer
                       stream={selectedStream}
                       viewerCount={viewerCount}
                       isMuted={true}
                       showControls={true}
                       duration={streamDuration}
-                      showLogoOverlay={showLogo}
+                      showLogoOverlay={false}
                     />
-                  ) : (
+                  )}
+
+                  {showWaitingScreen && (
                     <div className="video-placeholder-container">
                       <div className="placeholder-content">
                         <Video size={48} className="text-muted" />
@@ -525,14 +637,11 @@ export default function Admin() {
                     {devices.map((dev) => {
                       const stream = deviceStreams[dev.socketId];
                       const isSelected = dev.socketId === selectedDeviceId;
-                      const isPreviewing = dev.socketId === previewDeviceId;
 
                       return (
                         <div
                           key={dev.socketId}
-                          className={`mini-stream-item card ${isSelected ? "is-selected-program" : ""} ${
-                            isPreviewing ? "is-previewing" : ""
-                          }`}
+                          className={`mini-stream-item card ${isSelected ? "is-selected-program" : ""}`}
                         >
                           <div className="mini-stream-header">
                             <span className="mini-stream-title">{dev.deviceName}</span>
@@ -546,42 +655,20 @@ export default function Admin() {
                             </span>
                           </div>
 
-                          <div className="mini-video-container">
-                            {stream ? (
-                              <video
-                                ref={(node) => {
-                                  if (node && node.srcObject !== stream) {
-                                    node.srcObject = stream;
-                                    node.play().catch(() => {});
-                                  }
-                                }}
-                                autoPlay
-                                muted
-                                playsInline
-                                className="mini-video"
-                              />
-                            ) : (
-                              <div className="mini-video-placeholder">
-                                <span>{dev.isStreaming ? "Connecting feed..." : "Not streaming"}</span>
-                              </div>
-                            )}
-
-                            {isSelected && <div className="program-tag">PROGRAM</div>}
-                          </div>
+                          <MiniVideoContainer
+                            stream={stream || null}
+                            showLogo={dev.showLogo}
+                            isSelected={isSelected}
+                          />
 
                           <div className="mini-stream-actions">
                             <button
                               disabled={!dev.isStreaming}
                               onClick={() => selectProgramSource(dev.socketId)}
                               className={`btn ${isSelected ? "btn-danger" : "btn-primary"} btn-xs`}
+                              style={{ width: "100%" }}
                             >
                               {isSelected ? "Currently Live" : "Set as Program"}
-                            </button>
-                            <button
-                              onClick={() => setPreviewDeviceId(isPreviewing ? null : dev.socketId)}
-                              className={`btn ${isPreviewing ? "btn-primary" : "btn-secondary"} btn-xs`}
-                            >
-                              <Eye size={12} /> {isPreviewing ? "Previewing" : "Preview"}
                             </button>
                           </div>
                         </div>

@@ -244,6 +244,14 @@ export default function Watch() {
   );
 }
 
+interface StreamDevice {
+  socketId: string;
+  deviceId: string;
+  deviceName: string;
+  isStreaming: boolean;
+  showLogo?: boolean;
+}
+
 function WatchingView({
   initialStreamInfo,
   username,
@@ -253,8 +261,13 @@ function WatchingView({
   username: string;
   onLeave: () => void;
 }) {
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const activePcRef = useRef<RTCPeerConnection | null>(null);
+  const pendingPcRef = useRef<RTCPeerConnection | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const pendingTargetSocketIdRef = useRef<string | null>(null);
+
   const [streamInfo, setStreamInfo] = useState<StreamInfo>(initialStreamInfo);
+  const [devices, setDevices] = useState<StreamDevice[]>([]);
   const [viewerCount, setViewerCount] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [videoLayout, setVideoLayout] = useState<"landscape" | "portrait">("landscape");
@@ -262,18 +275,16 @@ function WatchingView({
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(
     initialStreamInfo.selectedDeviceId || null
   );
-  const [showLogo, setShowLogo] = useState<boolean>(Boolean(initialStreamInfo.showLogo));
-  const [feedState, setFeedState] = useState<
-    "connecting" | "waiting_for_feed" | "active" | "unavailable"
-  >("waiting_for_feed");
+  const [adminShowLogo, setAdminShowLogo] = useState<boolean>(Boolean(initialStreamInfo.showLogo));
 
   const connectToSource = (targetSocketId: string) => {
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
+    // Keep existing activePcRef and remoteStream running during initial fetch!
+    if (pendingPcRef.current) {
+      pendingPcRef.current.close();
+      pendingPcRef.current = null;
     }
-    setRemoteStream(null);
-    setFeedState("connecting");
+    pendingIceCandidatesRef.current = [];
+    pendingTargetSocketIdRef.current = targetSocketId;
 
     socket.emit("request:stream", { targetSocketId });
   };
@@ -313,17 +324,32 @@ function WatchingView({
       setFeedState("waiting_for_feed");
     }
 
-    const handleOffer = async (data: { from: string; sdp: any }) => {
-      if (pcRef.current) pcRef.current.close();
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
-      pcRef.current = pc;
+    const handleOffer = async (data: { from: string; sdp: any }) => {
+      if (pendingPcRef.current) pendingPcRef.current.close();
+
+      const pc = new RTCPeerConnection({ iceServers });
+      pendingPcRef.current = pc;
+      pendingIceCandidatesRef.current = [];
 
       pc.ontrack = (ev) => {
-        setRemoteStream(ev.streams[0]);
-        setFeedState("active");
+        const newStream = (ev.streams && ev.streams[0]) ? ev.streams[0] : new MediaStream([ev.track]);
+
+        // Seamless switch: Close old PC and set new stream as active
+        if (activePcRef.current) {
+          activePcRef.current.close();
+        }
+        activePcRef.current = pc;
+        pendingPcRef.current = null;
+        pendingTargetSocketIdRef.current = null;
+        setRemoteStream(newStream);
       };
 
       pc.onicecandidate = (ev) => {
@@ -337,14 +363,25 @@ function WatchingView({
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { targetId: data.from, sdp: pc.localDescription });
+
+        // Flush queued ICE candidates
+        for (const cand of pendingIceCandidatesRef.current) {
+          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        }
+        pendingIceCandidatesRef.current = [];
       } catch (err) {
         console.error("Viewer error handling offer:", err);
       }
     };
 
     const handleIceCandidate = (data: { from: string; candidate: any }) => {
-      if (pcRef.current && data.candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+      const pc = pendingPcRef.current || activePcRef.current;
+      if (data.candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+        } else {
+          pendingIceCandidatesRef.current.push(data.candidate);
+        }
       }
     };
 
@@ -356,34 +393,44 @@ function WatchingView({
       setSelectedDeviceId(data.selectedDeviceId);
 
       if (data.unavailable) {
-        if (pcRef.current) pcRef.current.close();
-        pcRef.current = null;
+        if (activePcRef.current) activePcRef.current.close();
+        if (pendingPcRef.current) pendingPcRef.current.close();
+        activePcRef.current = null;
+        pendingPcRef.current = null;
         setRemoteStream(null);
-        setFeedState("unavailable");
       } else if (data.selectedDeviceId) {
         connectToSource(data.selectedDeviceId);
       } else {
-        if (pcRef.current) pcRef.current.close();
-        pcRef.current = null;
+        if (activePcRef.current) activePcRef.current.close();
+        if (pendingPcRef.current) pendingPcRef.current.close();
+        activePcRef.current = null;
+        pendingPcRef.current = null;
         setRemoteStream(null);
-        setFeedState("waiting_for_feed");
       }
     };
 
     const handleLogoStatus = (data: { showLogo: boolean }) => {
-      setShowLogo(Boolean(data.showLogo));
+      setAdminShowLogo(Boolean(data.showLogo));
     };
 
-    const handleBroadcastUpdated = (updated: StreamInfo) => {
+    const handleDevicesUpdated = (devList: StreamDevice[]) => {
+      setDevices(devList);
+    };
+
+    const handleBroadcastUpdated = (updated: StreamInfo & { devices?: StreamDevice[] }) => {
       setStreamInfo((prev) => ({ ...prev, ...updated }));
-      if (updated.showLogo !== undefined) setShowLogo(Boolean(updated.showLogo));
+      if (updated.showLogo !== undefined) setAdminShowLogo(Boolean(updated.showLogo));
+      if (updated.devices) setDevices(updated.devices);
       if (updated.selectedDeviceId !== undefined && updated.selectedDeviceId !== selectedDeviceId) {
         setSelectedDeviceId(updated.selectedDeviceId);
         if (updated.selectedDeviceId) {
           connectToSource(updated.selectedDeviceId);
         } else {
+          if (activePcRef.current) activePcRef.current.close();
+          if (pendingPcRef.current) pendingPcRef.current.close();
+          activePcRef.current = null;
+          pendingPcRef.current = null;
           setRemoteStream(null);
-          setFeedState("waiting_for_feed");
         }
       }
     };
@@ -394,6 +441,7 @@ function WatchingView({
     socket.on("ice", handleIceCandidate);
     socket.on("program:changed", handleProgramChanged);
     socket.on("logo:status", handleLogoStatus);
+    socket.on("devices:updated", handleDevicesUpdated);
     socket.on("broadcast:updated", handleBroadcastUpdated);
     socket.on("viewerCount", setViewerCount);
     socket.on("stream:layoutChange", handleLayoutChange);
@@ -405,12 +453,29 @@ function WatchingView({
       socket.off("ice", handleIceCandidate);
       socket.off("program:changed", handleProgramChanged);
       socket.off("logo:status", handleLogoStatus);
+      socket.off("devices:updated", handleDevicesUpdated);
       socket.off("broadcast:updated", handleBroadcastUpdated);
       socket.off("viewerCount", setViewerCount);
       socket.off("stream:layoutChange", handleLayoutChange);
-      if (pcRef.current) pcRef.current.close();
+      if (activePcRef.current) activePcRef.current.close();
+      if (pendingPcRef.current) pendingPcRef.current.close();
     };
   }, [username]);
+
+  // Priority Output Determination
+  const activeProgramDevice = devices.find((d) => d.socketId === selectedDeviceId);
+
+  // Output logic priority:
+  // 1. Admin logo active? -> ADMIN LOGO
+  // 2. No program device? -> Waiting UI
+  // 3. Program device logo active? -> STREAMER LOGO
+  // 4. Remote video stream ready? -> STREAM VIDEO
+  // 5. Waiting UI
+
+  const showAdminLogoLayer = adminShowLogo;
+  const showStreamerLogoLayer = !adminShowLogo && Boolean(activeProgramDevice?.showLogo);
+  const showVideoPlayer = !adminShowLogo && !showStreamerLogoLayer && Boolean(remoteStream);
+  const showWaitingScreen = !adminShowLogo && !showStreamerLogoLayer && !showVideoPlayer;
 
   return (
     <div className="watch-page container">
@@ -424,7 +489,23 @@ function WatchingView({
       <div className="watch-layout with-chat">
         <div className="watch-main-content">
           <div className="card">
-            {remoteStream ? (
+            {showAdminLogoLayer && (
+              <div className="video-player-wrapper">
+                <div className="video-logo-overlay">
+                  <img src="/logo.png" alt="Admin Logo Overlay" className="overlay-logo-img" />
+                </div>
+              </div>
+            )}
+
+            {showStreamerLogoLayer && (
+              <div className="video-player-wrapper">
+                <div className="video-logo-overlay">
+                  <img src="/logo.png" alt="Streamer Logo Overlay" className="overlay-logo-img" />
+                </div>
+              </div>
+            )}
+
+            {showVideoPlayer && remoteStream && (
               <VideoPlayer
                 stream={remoteStream}
                 viewerCount={viewerCount}
@@ -433,34 +514,20 @@ function WatchingView({
                 initialLayout={videoLayout}
                 duration={duration}
                 onLeave={onLeave}
-                showLogoOverlay={showLogo}
+                showLogoOverlay={false}
               />
-            ) : (
+            )}
+
+            {showWaitingScreen && (
               <div className="video-player-wrapper video-placeholder-container">
                 <div className="placeholder-content">
-                  {feedState === "connecting" && (
-                    <>
-                      <div className="loading-spinner"></div>
-                      <p>Connecting to live video feed...</p>
-                    </>
-                  )}
-                  {feedState === "waiting_for_feed" && (
-                    <>
-                      <Video size={48} className="text-muted" />
-                      <h4>Waiting for video feed...</h4>
-                      <p>The broadcast has started, but the video feed hasn't connected yet.</p>
-                    </>
-                  )}
-                  {feedState === "unavailable" && (
-                    <>
-                      <AlertCircle size={48} className="text-warning" />
-                      <h4>Program source unavailable.</h4>
-                      <p>The selected camera feed disconnected. Waiting for host to select another camera.</p>
-                    </>
-                  )}
+                  <Video size={48} className="text-muted" />
+                  <h4>Waiting for stream video...</h4>
+                  <p>The broadcast is active. Waiting for camera stream output to connect.</p>
                 </div>
               </div>
             )}
+
             <SermonInfo streamInfo={streamInfo} />
           </div>
         </div>

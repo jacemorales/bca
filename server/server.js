@@ -285,6 +285,7 @@ io.on("connection", (socket) => {
       deviceId: assignedId,
       deviceName: assignedName,
       isStreaming: false,
+      showLogo: false,
       connectedAt: new Date().toISOString(),
     };
 
@@ -318,6 +319,20 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("streamer:toggle_logo", ({ showLogo }) => {
+    const device = streamingDevices.get(socket.id);
+    if (device) {
+      device.showLogo = Boolean(showLogo);
+      addActivityLog(
+        `"${device.deviceName}" logo overlay ${
+          device.showLogo ? "enabled" : "disabled"
+        }.`
+      );
+      io.emit("devices:updated", getDevicesList());
+    }
+  });
+
+
   // --- VIEWER REGISTRATION ---
   socket.on("role:viewer", (data) => {
     const username = data?.username || "Anonymous";
@@ -328,6 +343,7 @@ io.on("connection", (socket) => {
     socket.emit("stream:status", {
       online: activeBroadcast.status !== "ENDED" && activeBroadcast.status !== "DRAFT",
       info: activeBroadcast,
+      devices: getDevicesList(),
       selectedDeviceId: activeBroadcast.selectedDeviceId,
       showLogo: activeBroadcast.showLogo,
     });
@@ -339,6 +355,7 @@ io.on("connection", (socket) => {
     socket.emit("stream:status", {
       online: activeBroadcast.status !== "ENDED" && activeBroadcast.status !== "DRAFT",
       info: activeBroadcast,
+      devices: getDevicesList(),
       selectedDeviceId: activeBroadcast.selectedDeviceId,
       showLogo: activeBroadcast.showLogo,
     });
