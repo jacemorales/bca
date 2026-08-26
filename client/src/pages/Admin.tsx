@@ -145,6 +145,7 @@ export default function Admin() {
 
   // PeerConnections for mini device previews
   const previewPcsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingIceCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
   const [deviceStreams, setDeviceStreams] = useState<Record<string, MediaStream>>({});
 
   useEffect(() => {
@@ -201,6 +202,7 @@ export default function Admin() {
         previewPcsRef.current[socketId].close();
         delete previewPcsRef.current[socketId];
       }
+      delete pendingIceCandidatesRef.current[socketId];
       setDeviceStreams((prev) => {
         const next = { ...prev };
         delete next[socketId];
@@ -212,23 +214,35 @@ export default function Admin() {
       setActivityLogs((prev) => [...prev.slice(-99), logItem]);
     };
 
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
+
     const onOffer = async ({ from, sdp }: { from: string; sdp: any }) => {
       let pc = previewPcsRef.current[from];
-      if (!pc) {
-        pc = new RTCPeerConnection({
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        });
-        previewPcsRef.current[from] = pc;
+      if (pc) {
+        pc.close();
       }
 
+      pc = new RTCPeerConnection({ iceServers });
+      previewPcsRef.current[from] = pc;
+      pendingIceCandidatesRef.current[from] = [];
+
       pc.ontrack = (ev) => {
+        let remoteStream: MediaStream;
         if (ev.streams && ev.streams[0]) {
-          const remoteStream = ev.streams[0];
-          setDeviceStreams((prev) => ({
-            ...prev,
-            [from]: remoteStream,
-          }));
+          remoteStream = ev.streams[0];
+        } else {
+          remoteStream = new MediaStream([ev.track]);
         }
+        setDeviceStreams((prev) => ({
+          ...prev,
+          [from]: remoteStream,
+        }));
       };
 
       pc.onicecandidate = (ev) => {
@@ -242,6 +256,13 @@ export default function Admin() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { targetId: from, sdp: pc.localDescription });
+
+        // Flush pending ICE candidates for this peer
+        const queued = pendingIceCandidatesRef.current[from] || [];
+        for (const cand of queued) {
+          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        }
+        pendingIceCandidatesRef.current[from] = [];
       } catch (err) {
         console.error("Error handling WebRTC offer in Admin:", err);
       }
@@ -249,10 +270,17 @@ export default function Admin() {
 
     const onIceCandidate = ({ from, candidate }: { from: string; candidate: any }) => {
       const pc = previewPcsRef.current[from];
-      if (pc && candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
-          console.warn("Error adding ICE candidate:", e)
-        );
+      if (candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
+            console.warn("Error adding ICE candidate:", e)
+          );
+        } else {
+          if (!pendingIceCandidatesRef.current[from]) {
+            pendingIceCandidatesRef.current[from] = [];
+          }
+          pendingIceCandidatesRef.current[from].push(candidate);
+        }
       }
     };
 
@@ -280,6 +308,7 @@ export default function Admin() {
 
       Object.values(previewPcsRef.current).forEach((pc) => pc.close());
       previewPcsRef.current = {};
+      pendingIceCandidatesRef.current = {};
     };
   }, []);
 

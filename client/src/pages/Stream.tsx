@@ -57,6 +57,7 @@ export default function Stream() {
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const pendingIceCandidatesRef = useRef<Record<string, RTCIceCandidateInit[]>>({});
 
   useEffect(() => {
     if (!socket.connected) {
@@ -108,15 +109,26 @@ export default function Stream() {
       }
     };
 
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+    ];
+
     const onRequestFeed = async (data: { requesterId: string }) => {
       if (!localStreamRef.current || !data.requesterId) return;
       const { requesterId } = data;
       console.log("Feed requested by:", requesterId);
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
+      if (pcsRef.current[requesterId]) {
+        pcsRef.current[requesterId].close();
+      }
+
+      const pc = new RTCPeerConnection({ iceServers });
       pcsRef.current[requesterId] = pc;
+      pendingIceCandidatesRef.current[requesterId] = [];
 
       localStreamRef.current.getTracks().forEach((track) => {
         pc.addTrack(track, localStreamRef.current!);
@@ -140,14 +152,33 @@ export default function Stream() {
     const handleAnswer = async ({ from, sdp }: { from: string; sdp: any }) => {
       const pc = pcsRef.current[from];
       if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          // Flush pending ICE candidates for this peer
+          const queued = pendingIceCandidatesRef.current[from] || [];
+          for (const cand of queued) {
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+          pendingIceCandidatesRef.current[from] = [];
+        } catch (err) {
+          console.error("Error setting remote description from answer:", err);
+        }
       }
     };
 
     const handleIce = ({ from, candidate }: { from: string; candidate: any }) => {
       const pc = pcsRef.current[from];
-      if (pc && candidate) {
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) =>
+            console.warn("Error adding ICE candidate:", e)
+          );
+        } else {
+          if (!pendingIceCandidatesRef.current[from]) {
+            pendingIceCandidatesRef.current[from] = [];
+          }
+          pendingIceCandidatesRef.current[from].push(candidate);
+        }
       }
     };
 
